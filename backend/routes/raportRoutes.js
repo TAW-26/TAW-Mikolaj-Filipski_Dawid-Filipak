@@ -96,3 +96,5 @@ router.get('/', [auth, admin], async (req, res) => {
         res.status(500).json({ message: 'Błąd podczas pobierania listy raportów' });
     }
 });
+
+module.exports = router;

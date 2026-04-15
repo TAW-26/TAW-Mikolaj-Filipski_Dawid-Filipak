@@ -1,13 +1,17 @@
 const mongoose = require('mongoose');
 
 const rezerwacjaSchema = new mongoose.Schema({
-  uzytkownik: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  parking: { type: mongoose.Schema.Types.ObjectId, ref: 'Parking' },
-  status: { type: String, default: 'aktywna' },
-  data_start: { type: Date, default: Date.now },
-  data_zakonczenia: { type: Date },
-  cena_calkowita: { type: Number },
-  numer_rejestracyjny: { type: String }
+  uzytkownikId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  parkingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Parking', required: true },
+  pojazdId: { type: mongoose.Schema.Types.ObjectId, ref: 'Pojazd', required: true },
+  dataOd: { type: Date, required: true },
+  dataDo: { type: Date, required: true },
+  koszt: { type: Number, required: true },
+  status: { 
+    type: String, 
+    enum: ['aktywna', 'anulowana', 'zakonczona'], 
+    default: 'aktywna' 
+  }
 });
 
 module.exports = mongoose.model('Rezerwacja', rezerwacjaSchema);

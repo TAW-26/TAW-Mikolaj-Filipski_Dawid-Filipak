@@ -47,7 +47,7 @@ router.post('/', auth, async (req, res) => {
         const nowyPojazd = new Pojazd({
             marka,
             model,
-            rejestracja,
+            numer_rejestracyjny: rejestracja,
             wlascicielId: req.user.id
         });
 
