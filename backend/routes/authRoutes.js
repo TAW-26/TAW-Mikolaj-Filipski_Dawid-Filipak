@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const admin = require('../middleware/admin'); // Dodany import middleware'u admina
 
 router.post('/register', async (req, res) => {
   try {
@@ -77,4 +78,50 @@ router.get('/me', auth, async (req, res) => {
 router.get('/id', auth, async (req, res) => {
     res.json({ message: `Endpoint: Pobieranie użytkownika: ${req.user.id}` });
 });
+
+
+// [GET] Pobierz listę wszystkich użytkowników (Tylko Admin)
+router.get('/users', [auth, admin], async (req, res) => {
+    try {
+        // Zwracamy wszystkich, ale bez haseł (-haslo)
+        const users = await User.find().select('-haslo');
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ message: 'Błąd podczas pobierania użytkowników' });
+    }
+});
+
+// [PUT] Zmiana roli użytkownika (Tylko Admin)
+router.put('/users/:id/rola', [auth, admin], async (req, res) => {
+    try {
+        const { rola } = req.body;
+        if (!['klient', 'admin'].includes(rola)) {
+            return res.status(400).json({ message: 'Nieprawidłowa rola' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.params.id, 
+            { rola }, 
+            { new: true }
+        ).select('-haslo');
+
+        if (!user) return res.status(404).json({ message: 'Nie znaleziono użytkownika' });
+        res.json({ message: 'Rola zaktualizowana', user });
+    } catch (err) {
+        res.status(500).json({ message: 'Błąd serwera' });
+    }
+});
+
+// [DELETE] Usunięcie użytkownika (Tylko Admin)
+router.delete('/users/:id', [auth, admin], async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) return res.status(404).json({ message: 'Nie znaleziono użytkownika' });
+        
+        res.json({ message: 'Użytkownik został usunięty' });
+    } catch (err) {
+        res.status(500).json({ message: 'Błąd serwera' });
+    }
+});
+
 module.exports = router;
