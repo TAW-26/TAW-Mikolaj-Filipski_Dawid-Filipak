@@ -38,8 +38,8 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ message: 'Wypełnij wszystkie dane pojazdu' });
         }
 
-        // Sprawdzenie, czy auto o takiej rejestracji już nie istnieje
-        const istniejacyPojazd = await Pojazd.findOne({ rejestracja });
+        // Sprawdzenie, czy auto o takiej rejestracji już nie istnieje (poprawione szukanie po odpowiednim polu w bazie)
+        const istniejacyPojazd = await Pojazd.findOne({ numer_rejestracyjny: rejestracja });
         if (istniejacyPojazd) {
             return res.status(400).json({ message: 'Pojazd o takiej rejestracji jest już w bazie' });
         }
@@ -90,7 +90,8 @@ router.delete('/:id', auth, async (req, res) => {
         const aktywneRezerwacje = await Rezerwacja.findOne({
             pojazdId: req.params.id,
             dataDo: { $gte: new Date() },
-            status: { $ne: 'anulowana' } // Ignorujemy anulowane
+            // Zmiana: Wykluczamy z blokady zarówno anulowane, jak i zakończone rezerwacje
+            status: { $nin: ['anulowana', 'zakonczona'] }
         });
 
         if (aktywneRezerwacje) {

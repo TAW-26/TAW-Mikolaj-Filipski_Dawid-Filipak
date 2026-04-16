@@ -5,11 +5,30 @@ const admin = require('../middleware/admin'); // Nasz nowy middleware do sprawdz
 const Parking = require('../models/Parking');
 const Rezerwacja = require('../models/Rezerwacja'); // Potrzebne do obliczania dostępności
 
-// [GET] Pobierz wszystkie parkingi (Dostępne dla każdego)
+// [GET] Pobierz wszystkie parkingi (Dostępne dla każdego) - WRAZ Z DOSTĘPNOŚCIĄ
 router.get('/', async (req, res) => {
     try {
-        const parkingi = await Parking.find();
-        res.json(parkingi);
+        const parkingi = await Parking.find().select('nazwa adres cenaZaGodzine liczbaMiejsc');
+        const teraz = new Date();
+
+        // Dodajemy logikę liczenia dostępności dla każdego parkingu z listy na żywo
+        const parkingiZDostepnoscia = await Promise.all(parkingi.map(async (parking) => {
+            const zajeteMiejsca = await Rezerwacja.countDocuments({
+                parkingId: parking._id,
+                dataOd: { $lte: teraz },
+                dataDo: { $gt: teraz },
+                status: { $nin: ['anulowana', 'zakonczona'] } // Ignorujemy nieaktywne rezerwacje
+            });
+
+            const wolne = parking.liczbaMiejsc - zajeteMiejsca;
+
+            return {
+                ...parking._doc, // Skopiowanie podstawowych danych parkingu
+                wolneMiejsca: wolne > 0 ? wolne : 0
+            };
+        }));
+
+        res.json(parkingiZDostepnoscia);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania parkingów' });
@@ -17,6 +36,7 @@ router.get('/', async (req, res) => {
 });
 
 // [GET] Pobierz szczegóły jednego parkingu (Dostępne dla każdego)
+// Tutaj zwracamy wszystkie dane, bo to widok szczegółów konkretnego miejsca
 router.get('/:id', async (req, res) => {
     try {
         const parking = await Parking.findById(req.params.id);
@@ -44,7 +64,7 @@ router.get('/:id/dostepnosc', async (req, res) => {
             parkingId: req.params.id,
             dataOd: { $lte: teraz },  // Rezerwacja już się zaczęła...
             dataDo: { $gt: teraz },   // ...ale jeszcze się nie skończyła
-            status: { $ne: 'anulowana' } // Opcjonalnie: pomijamy anulowane, jeśli dodacie takie pole
+            status: { $nin: ['anulowana', 'zakonczona'] } // Wykluczamy zakończone i anulowane
         });
 
         const wolneMiejsca = parking.liczbaMiejsc - zajeteMiejsca;
