@@ -29,8 +29,7 @@ router.post('/generuj', [auth, admin], async (req, res) => {
         const calkowityDochod = rezerwacje.reduce((suma, rez) => suma + (rez.cenaCalkowita || rez.koszt || 0), 0);
         
         // Formatyzujemy dane w tekst, by zapisać do bazy
-        const tekstRaportu = `Wygenerowano raport dla parkingu "${parking.nazwa}". Całkowita liczba rezerwacji: ${liczbaRezerwacji}. Przewidywany dochód: ${calkowityDochod} PLN.`;
-
+        const tekstRaportu = `Wygenerowano raport dla parkingu "${parking.nazwa}". Całkowita liczba rezerwacji: ${rezerwacje.length}. Przewidywany dochód: ${calkowityDochod} PLN.`;
         // Zapisujemy ślad w bazie danych
         const nowyRaport = new Raport({
             administratorId: req.user.id,
