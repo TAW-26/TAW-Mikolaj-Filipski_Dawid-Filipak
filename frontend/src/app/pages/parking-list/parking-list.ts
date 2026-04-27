@@ -12,9 +12,9 @@ export class ParkingListComponent implements OnInit {
   parkingi: any[] = [];
 
   ngOnInit() {
-fetch('http://localhost:3000/api/parkingi')
+    fetch('http://localhost:3000/api/parkingi')
       .then(res => res.json())
       .then(data => this.parkingi = data)
-      .catch(err => console.error(err));
+      .catch(err => console.error('Błąd:', err));
   }
 }
