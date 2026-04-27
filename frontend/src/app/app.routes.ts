@@ -4,7 +4,7 @@ import { ParkingDetailsComponent } from './pages/parking-details/parking-details
 import { DashboardComponent } from './pages/dashboard/dashboard';
 
 export const routes: Routes = [
-  { path: '', component: ParkingListComponent },           // Strona główna z listą
-  { path: 'parking/:id', component: ParkingDetailsComponent }, // Szczegóły konkretnego parkingu
-  { path: 'panel', component: DashboardComponent }         // Panel użytkownika
+  { path: '', component: ParkingListComponent },
+  { path: 'parking/:id', component: ParkingDetailsComponent },
+  { path: 'panel', component: DashboardComponent }
 ];
