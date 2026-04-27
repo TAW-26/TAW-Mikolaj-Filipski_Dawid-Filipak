@@ -8,7 +8,7 @@ app.use(express.json());
 const mongoose = require('mongoose');
 const auth = require('./middleware/auth');
 
-mongoose.connect('mongodb+srv://mikolajfili_db_user:4FEKAIfJYnJO5xKa@cluster0.zfkbmjv.mongodb.net/?appName=Cluster0')
+mongoose.connect('mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0')
   .then(() => console.log('Połączono z MongoDB!'))
   .catch(err => console.error('Błąd połączenia:', err));
 

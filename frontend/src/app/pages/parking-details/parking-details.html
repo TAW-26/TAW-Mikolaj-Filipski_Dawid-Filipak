@@ -1,0 +1,36 @@
+<div *ngIf="!parking">Ładowanie...</div>
+
+<div *ngIf="parking" class="p-8 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+  <div>
+    <h1 class="text-3xl font-bold mb-4">{{parking.nazwa}}</h1>
+    <p class="text-gray-700 mb-2"><strong>Adres:</strong> {{parking.adres}}</p>
+    <p class="text-gray-700 mb-2"><strong>Opis:</strong> {{parking.opis}}</p>
+    <p class="text-gray-700 mb-4"><strong>Cena:</strong> {{parking.cenaZaGodzine}} PLN / godzina</p>
+  </div>
+
+  <div class="bg-gray-50 p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4">Zarezerwuj miejsce</h2>
+    <form (submit)="handleSubmit()" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Wybierz pojazd</label>
+        <select required name="pojazdId" [(ngModel)]="formData.pojazdId" class="w-full border p-2 rounded">
+          <option value="">-- Wybierz --</option>
+          <option *ngFor="let p of pojazdy" [value]="p._id">
+            {{p.marka}} {{p.model}} ({{p.numer_rejestracyjny}})
+          </option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Data rozpoczęcia</label>
+        <input type="datetime-local" required name="dataOd" [(ngModel)]="formData.dataOd" class="w-full border p-2 rounded" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Data zakończenia</label>
+        <input type="datetime-local" required name="dataDo" [(ngModel)]="formData.dataDo" class="w-full border p-2 rounded" />
+      </div>
+      <button type="submit" class="bg-blue-600 text-white font-bold py-2 rounded mt-2 hover:bg-blue-700">
+        Potwierdź rezerwację
+      </button>
+    </form>
+  </div>
+</div>
