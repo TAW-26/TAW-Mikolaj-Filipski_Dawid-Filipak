@@ -10,7 +10,7 @@ import { Router, RouterModule } from '@angular/router';
   templateUrl: './register.html'
 })
 export class RegisterComponent {
-  userData = { imie: '', email: '', password: '' };
+  userData = { imie: '', email: '', haslo: '', rola: 'klient' };
 
   constructor(private router: Router) {}
 
