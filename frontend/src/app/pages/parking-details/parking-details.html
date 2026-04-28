@@ -1,35 +1,58 @@
-<div *ngIf="!parking">Ładowanie...</div>
+<div *ngIf="!parking" class="min-h-[50vh] flex items-center justify-center text-xl font-bold text-gray-500">
+  Ładowanie szczegółów parkingu...
+</div>
 
-<div *ngIf="parking" class="p-8 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+<div *ngIf="parking" class="py-12 px-4 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10">
   <div>
-    <h1 class="text-3xl font-bold mb-4">{{parking.nazwa}}</h1>
-    <p class="text-gray-700 mb-2"><strong>Adres:</strong> {{parking.adres}}</p>
-    <p class="text-gray-700 mb-2"><strong>Opis:</strong> {{parking.opis}}</p>
-    <p class="text-gray-700 mb-4"><strong>Cena:</strong> {{parking.cenaZaGodzine}} PLN / godzina</p>
+    <button routerLink="/" class="text-blue-600 font-bold mb-6 hover:underline flex items-center gap-2">
+      ← Powrót do listy
+    </button>
+    
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-4">{{parking.nazwa}}</h1>
+    <div class="space-y-3 text-lg">
+      <p class="flex items-center gap-2 text-gray-700">
+        <span class="font-bold">Adres:</span> {{parking.adres}}
+      </p>
+      <p class="flex items-center gap-2 text-gray-700">
+        <span class="font-bold">Cena:</span> 
+        <span class="bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded">{{parking.cenaZaGodzine}} PLN / godz.</span>
+      </p>
+      <p class="flex items-center gap-2 text-gray-700">
+        <span class="font-bold">Całkowita liczba miejsc:</span> {{parking.liczbaMiejsc}}
+      </p>
+    </div>
   </div>
 
-  <div class="bg-gray-50 p-6 rounded-lg shadow">
-    <h2 class="text-xl font-semibold mb-4">Zarezerwuj miejsce</h2>
-    <form (submit)="handleSubmit()" class="flex flex-col gap-4">
+  <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+    <h2 class="text-2xl font-bold mb-6">Zarezerwuj to miejsce</h2>
+    
+    <form (submit)="handleSubmit()" class="flex flex-col gap-5">
       <div>
-        <label class="block text-sm font-medium mb-1">Wybierz pojazd</label>
-        <select required name="pojazdId" [(ngModel)]="formData.pojazdId" class="w-full border p-2 rounded">
-          <option value="">-- Wybierz --</option>
+        <label class="block text-sm font-bold text-gray-700 mb-2">Wybierz swój pojazd</label>
+        <select required name="pojazdId" [(ngModel)]="formData.pojazdId" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+          <option value="" disabled selected>-- Wybierz z listy --</option>
           <option *ngFor="let p of pojazdy" [value]="p._id">
             {{p.marka}} {{p.model}} ({{p.numer_rejestracyjny}})
           </option>
         </select>
+        <p *ngIf="pojazdy.length === 0" class="text-red-500 text-sm mt-2">
+          Nie masz dodanych pojazdów! Przejdź do <a routerLink="/panel" class="underline font-bold">Panelu</a>, aby dodać auto.
+        </p>
       </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Data rozpoczęcia</label>
-        <input type="datetime-local" required name="dataOd" [(ngModel)]="formData.dataOd" class="w-full border p-2 rounded" />
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">Data i czas przyjazdu</label>
+          <input type="datetime-local" required name="dataOd" [(ngModel)]="formData.dataOd" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">Data i czas wyjazdu</label>
+          <input type="datetime-local" required name="dataDo" [(ngModel)]="formData.dataDo" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+        </div>
       </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Data zakończenia</label>
-        <input type="datetime-local" required name="dataDo" [(ngModel)]="formData.dataDo" class="w-full border p-2 rounded" />
-      </div>
-      <button type="submit" class="bg-blue-600 text-white font-bold py-2 rounded mt-2 hover:bg-blue-700">
-        Potwierdź rezerwację
+
+      <button type="submit" [disabled]="pojazdy.length === 0" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg mt-4 hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed text-lg">
+        Potwierdź i Rezerwuj
       </button>
     </form>
   </div>
