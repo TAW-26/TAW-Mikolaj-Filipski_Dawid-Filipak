@@ -7,7 +7,6 @@
     <button routerLink="/" class="text-blue-600 font-bold mb-6 hover:underline flex items-center gap-2">
       ← Powrót do listy
     </button>
-    
     <h1 class="text-4xl font-extrabold text-gray-900 mb-4">{{parking.nazwa}}</h1>
     <div class="space-y-3 text-lg">
       <p class="flex items-center gap-2 text-gray-700">
@@ -43,15 +42,25 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div>
           <label class="block text-sm font-bold text-gray-700 mb-2">Data i czas przyjazdu</label>
-          <input type="datetime-local" required name="dataOd" [(ngModel)]="formData.dataOd" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+          <input type="datetime-local" required name="dataOd" [(ngModel)]="formData.dataOd" (ngModelChange)="sprawdzDostepnosc()" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
         </div>
         <div>
           <label class="block text-sm font-bold text-gray-700 mb-2">Data i czas wyjazdu</label>
-          <input type="datetime-local" required name="dataDo" [(ngModel)]="formData.dataDo" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+          <input type="datetime-local" required name="dataDo" [(ngModel)]="formData.dataDo" (ngModelChange)="sprawdzDostepnosc()" class="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
         </div>
       </div>
 
-      <button type="submit" [disabled]="pojazdy.length === 0" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg mt-4 hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed text-lg">
+      <div *ngIf="formData.dataOd && formData.dataDo" class="p-4 rounded-lg text-center transition-all"
+           [ngClass]="{'bg-green-50 text-green-700 border border-green-200': wolneMiejscaWybranyTermin !== null && wolneMiejscaWybranyTermin > 0, 
+                       'bg-red-50 text-red-700 border border-red-200': wolneMiejscaWybranyTermin === 0}">
+        <div *ngIf="sprawdzamDostepnosc" class="font-bold animate-pulse">Sprawdzanie bazy...</div>
+        <div *ngIf="!sprawdzamDostepnosc && wolneMiejscaWybranyTermin !== null">
+          <span class="font-bold text-lg block">Wolne miejsca w wybranym terminie: {{ wolneMiejscaWybranyTermin }}</span>
+          <span *ngIf="wolneMiejscaWybranyTermin === 0" class="text-sm font-bold text-red-600 block mt-1">Niestety, wszystkie miejsca na ten czas są już zajęte!</span>
+        </div>
+      </div>
+
+      <button type="submit" [disabled]="pojazdy.length === 0 || !formData.pojazdId || wolneMiejscaWybranyTermin === 0" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg mt-2 hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed text-lg">
         Potwierdź i Rezerwuj
       </button>
     </form>

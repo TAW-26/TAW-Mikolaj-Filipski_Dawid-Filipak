@@ -12,9 +12,9 @@ router.get('/', async (req, res) => {
         const teraz = new Date();
 
         const parkingiZDostepnoscia = await Promise.all(parkingi.map(async (parking) => {
+            // ZMIANA: Zliczamy wszystkie rezerwacje (obecne i przyszłe), które jeszcze się nie zakończyły
             const zajeteMiejsca = await Rezerwacja.countDocuments({
                 parkingId: parking._id,
-                dataOd: { $lte: teraz },
                 dataDo: { $gt: teraz },
                 status: { $nin: ['anulowana', 'zakonczona'] }
             });
@@ -48,7 +48,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// [GET] Sprawdź dostępność parkingu "na teraz"
+// [GET] Sprawdź dostępność parkingu (na teraz lub w wybranym oknie czasowym)
 router.get('/:id/dostepnosc', async (req, res) => {
     try {
         const parking = await Parking.findById(req.params.id);
@@ -56,12 +56,17 @@ router.get('/:id/dostepnosc', async (req, res) => {
             return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
         }
 
-        const teraz = new Date();
+        // ZMIANA: Pobieramy daty z zapytania URL. Jeśli ich brakuje, sprawdzamy dostępność "na teraz".
+        const start = req.query.start ? new Date(req.query.start) : new Date();
+        const koniec = req.query.end ? new Date(req.query.end) : new Date(start.getTime() + 1000);
+
+        // ZMIANA: Szukamy nakładających się rezerwacji w wybranym przedziale czasowym
         const zajeteMiejsca = await Rezerwacja.countDocuments({
             parkingId: req.params.id,
-            dataOd: { $lte: teraz },
-            dataDo: { $gt: teraz },
-            status: { $nin: ['anulowana', 'zakonczona'] }
+            status: { $nin: ['anulowana', 'zakonczona'] },
+            $or: [
+                { dataOd: { $lt: koniec }, dataDo: { $gt: start } }
+            ]
         });
 
         const wolneMiejsca = parking.liczbaMiejsc - zajeteMiejsca;

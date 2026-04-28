@@ -16,11 +16,15 @@ export class ParkingDetailsComponent implements OnInit {
   id: string | null = '';
   private isBrowser: boolean;
 
+  // NOWE ZMIENNE DO DOSTĘPNOŚCI NA ŻYWO:
+  wolneMiejscaWybranyTermin: number | null = null;
+  sprawdzamDostepnosc: boolean = false;
+
   constructor(
     private route: ActivatedRoute, 
     private router: Router,
     private cdr: ChangeDetectorRef,
-    @Inject(PLATFORM_ID) platformId: Object // Narzędzie do sprawdzania, czy to serwer czy przeglądarka
+    @Inject(PLATFORM_ID) platformId: Object
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
   }
@@ -28,28 +32,20 @@ export class ParkingDetailsComponent implements OnInit {
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id');
 
-    // 1. Pobieramy szczegóły parkingu ZAWSZE (żeby F5 działało błyskawicznie)
     fetch(`http://localhost:3000/api/parkingi/${this.id}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Błąd HTTP');
-        return res.json();
-      })
+      .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         this.parking = data;
-        this.cdr.detectChanges(); // Odświeżamy widok, znika "Ładowanie..."
+        this.cdr.detectChanges();
       })
-      .catch(err => {
-        console.error('Błąd pobierania parkingu:', err);
-      });
+      .catch(err => console.error('Błąd pobierania parkingu:', err));
 
-    // 2. Pobieramy pojazdy TYLKO jeśli jesteśmy w przeglądarce (chroni przed crashem na serwerze)
     if (this.isBrowser) {
       this.pobierzPojazdy();
     }
   }
 
-  // Nasza sprawdzona funkcja z Panelu
-  getHeaders() {
+  getHeaders(): Record<string, string> {
     const token = localStorage.getItem('token') || '';
     return {
       'Content-Type': 'application/json',
@@ -60,17 +56,49 @@ export class ParkingDetailsComponent implements OnInit {
 
   pobierzPojazdy() {
     const token = localStorage.getItem('token');
-    if (!token) return; // Jeśli nie zalogowany, nawet nie próbujemy pobierać
+    if (!token) return; 
 
-    fetch('http://localhost:3000/api/pojazdy', {
-      headers: this.getHeaders()
-    })
+    fetch('http://localhost:3000/api/pojazdy', { headers: this.getHeaders() })
       .then(res => res.json())
       .then(data => {
         this.pojazdy = Array.isArray(data) ? data : [];
-        this.cdr.detectChanges(); // Wymuszamy pojawienie się aut na liście
+        this.cdr.detectChanges();
       })
       .catch(err => console.error('Błąd pobierania pojazdów:', err));
+  }
+
+  // --- NOWA FUNKCJA DO SPRAWDZANIA MIEJSC NA ŻYWO ---
+  sprawdzDostepnosc() {
+    if (!this.formData.dataOd || !this.formData.dataDo || !this.isBrowser) {
+      this.wolneMiejscaWybranyTermin = null;
+      return;
+    }
+
+    const start = new Date(this.formData.dataOd);
+    const koniec = new Date(this.formData.dataDo);
+
+    // Jeśli ktoś wpisał bzdurne daty (koniec przed startem), ignorujemy
+    if (start >= koniec) {
+      this.wolneMiejscaWybranyTermin = null;
+      return;
+    }
+
+    this.sprawdzamDostepnosc = true;
+    this.cdr.detectChanges();
+
+    // Wysyłamy ciche zapytanie z parametrami URL
+    fetch(`http://localhost:3000/api/parkingi/${this.id}/dostepnosc?start=${this.formData.dataOd}&end=${this.formData.dataDo}`)
+      .then(res => res.json())
+      .then(data => {
+        this.wolneMiejscaWybranyTermin = data.wolneMiejsca;
+        this.sprawdzamDostepnosc = false;
+        this.cdr.detectChanges();
+      })
+      .catch(err => {
+        console.error('Błąd sprawdzania dostępności:', err);
+        this.sprawdzamDostepnosc = false;
+        this.cdr.detectChanges();
+      });
   }
 
   async handleSubmit() {
@@ -86,11 +114,8 @@ export class ParkingDetailsComponent implements OnInit {
 
       const response = await fetch('http://localhost:3000/api/rezerwacje', {
         method: 'POST',
-        headers: this.getHeaders(), // Używamy kuloodpornych nagłówków
-        body: JSON.stringify({
-          parkingId: this.id,
-          ...this.formData
-        })
+        headers: this.getHeaders(),
+        body: JSON.stringify({ parkingId: this.id, ...this.formData })
       });
 
       if (response.ok) {
