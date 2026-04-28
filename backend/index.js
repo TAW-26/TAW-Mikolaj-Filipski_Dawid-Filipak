@@ -5,7 +5,6 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 
-
 const auth = require('./middleware/auth');
 const User = require('./models/User');
 const Parking = require('./models/Parking'); 
@@ -13,17 +12,15 @@ const Pojazd = require('./models/Pojazd');
 const Raport = require('./models/Raport');
 const Rezerwacja = require('./models/Rezerwacja');
 
-
 app.use(express.json());
 
-
+// ZAKTUALIZOWANA KONFIGURACJA CORS (Dodano 'PATCH')
 app.use(cors({
   origin: 'http://localhost:4200',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // <-- TUTAJ JEST PATCH
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   credentials: true
 }));
-
 
 app.use(session({
   secret: 'bezpieczny_klucz_sesji_123',
@@ -31,7 +28,6 @@ app.use(session({
   saveUninitialized: true,
   cookie: { httpOnly: true, secure: false }
 }));
-
 
 const startAdmin = async () => {
   try {

@@ -1,5 +1,5 @@
-import { Component, ChangeDetectorRef, afterNextRender } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectorRef, afterNextRender, Inject, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -10,36 +10,41 @@ import { Router } from '@angular/router';
   templateUrl: './dashboard.html'
 })
 export class DashboardComponent {
-  activeTab = 'rezerwacje'; // Domyślna wartość
+  activeTab = 'rezerwacje';
   rezerwacje: any[] = [];
   pojazdy: any[] = [];
   
   nowyPojazd = { marka: '', model: '', rejestracja: '' };
+  private isBrowser: boolean;
 
   constructor(
     private cdr: ChangeDetectorRef, 
-    private router: Router
+    private router: Router,
+    @Inject(PLATFORM_ID) platformId: Object
   ) {
+    this.isBrowser = isPlatformBrowser(platformId);
+    
     afterNextRender(() => {
-      // Pobieramy ostatnio otwartą zakładkę z pamięci przeglądarki
+      // Przywracanie ostatniej zakładki
       const zapisanaZakladka = localStorage.getItem('aktywnaZakladkaPanelu');
       if (zapisanaZakladka) {
         this.activeTab = zapisanaZakladka;
-        this.cdr.detectChanges(); // Odświeżenie widoku na właściwą zakładkę
+        this.cdr.detectChanges(); 
       }
-
       this.pobierzDane();
     });
   }
 
-  // Funkcja, która zmienia zakładkę i od razu zapisuje ją w przeglądarce
   zmienZakladke(tab: string) {
     this.activeTab = tab;
-    localStorage.setItem('aktywnaZakladkaPanelu', tab);
+    if (this.isBrowser) {
+      localStorage.setItem('aktywnaZakladkaPanelu', tab);
+    }
   }
 
+  // Wymuszony typ by TypeScript był zadowolony
   getHeaders(): Record<string, string> {
-    const token = localStorage.getItem('token') || '';
+    const token = this.isBrowser ? (localStorage.getItem('token') || '') : '';
     return {
       'Content-Type': 'application/json',
       'x-auth-token': token,
@@ -48,26 +53,22 @@ export class DashboardComponent {
   }
 
   pobierzDane() {
+    if (!this.isBrowser) return;
+
     const headers = this.getHeaders();
     
-    // Pobierz rezerwacje
+    // Pobieranie rezerwacji
     fetch('http://localhost:3000/api/rezerwacje/moje', { headers })
-      .then(res => {
-        if (!res.ok) throw new Error('Błąd HTTP');
-        return res.json();
-      })
+      .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         this.rezerwacje = Array.isArray(data) ? data : [];
         this.cdr.detectChanges(); 
       })
       .catch(err => console.error('Błąd pobierania rezerwacji:', err));
     
-    // Pobierz pojazdy
+    // Pobieranie pojazdów
     fetch('http://localhost:3000/api/pojazdy', { headers })
-      .then(res => {
-        if (!res.ok) throw new Error('Błąd HTTP');
-        return res.json();
-      })
+      .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         this.pojazdy = Array.isArray(data) ? data : [];
         this.cdr.detectChanges(); 
@@ -75,10 +76,65 @@ export class DashboardComponent {
       .catch(err => console.error('Błąd pobierania pojazdów:', err));
   }
 
+  // --- LOGIKA STATUSÓW I ANULOWANIA ---
+
+  okreslStatus(r: any): string {
+    if (r.status === 'anulowana') return 'anulowana';
+    if (r.status === 'zakonczona') return 'zakonczona';
+    
+    // Jeśli czas wyjazdu minął, wizualnie wymuszamy status "zakończona"
+    if (new Date(r.dataDo) < new Date()) return 'zakonczona';
+    
+    return 'aktywna';
+  }
+
+  czyMoznaAnulowac(r: any): boolean {
+    // Można anulować tylko aktywne rezerwacje, które jeszcze się nie zaczęły
+    if (this.okreslStatus(r) !== 'aktywna') return false;
+    return new Date(r.dataOd) > new Date();
+  }
+
+  async anulujRezerwacje(id: string) {
+    if (!this.isBrowser) return;
+    if (!confirm('Czy na pewno chcesz anulować tę rezerwację?')) return;
+
+    try {
+      const res = await fetch(`http://localhost:3000/api/rezerwacje/${id}/anuluj`, {
+        method: 'PATCH',
+        headers: this.getHeaders()
+      });
+
+      if (res.ok) {
+        alert('Rezerwacja została pomyślnie anulowana.');
+        this.pobierzDane(); // Odśwież listę po anulowaniu
+      } else {
+        // Bezpieczne pobranie błędu (chroni przed awarią gdy serwer zwraca HTML zamiast JSON)
+        const errorText = await res.text();
+        try {
+          const error = JSON.parse(errorText);
+          alert(error.message || 'Błąd podczas anulowania');
+        } catch (e) {
+          console.error('Surowa odpowiedź serwera:', errorText);
+          if (res.status === 404) {
+            alert('Błąd 404: Nie znaleziono ścieżki! Upewnij się, że zrestartowałeś serwer Node.js.');
+          } else {
+            alert(`Serwer zwrócił błąd ${res.status}. Zobacz konsolę (F12).`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Błąd funkcji fetch:', err);
+      alert('Całkowity błąd połączenia! Serwer jest wyłączony lub blokuje zapytanie.');
+    }
+  }
+
+  // --- POJAZDY ---
+
   async dodajPojazd() {
+    if (!this.isBrowser) return;
+
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Twoja sesja wygasła lub nie jesteś zalogowany. Zaloguj się ponownie.');
       this.router.navigate(['/login']);
       return;
     }
@@ -99,15 +155,13 @@ export class DashboardComponent {
         alert(error.message || 'Błąd dodawania pojazdu');
       }
     } catch (err) {
-      console.error('Błąd wysyłania zapytania:', err);
-      alert('Błąd połączenia z serwerem.');
+      console.error('Błąd:', err);
     }
   }
 
   async usunPojazd(id: string) {
-    if (!confirm('Czy na pewno chcesz usunąć ten pojazd?')) {
-      return; 
-    }
+    if (!this.isBrowser) return;
+    if (!confirm('Czy na pewno chcesz usunąć ten pojazd?')) return; 
 
     try {
       const res = await fetch(`http://localhost:3000/api/pojazdy/${id}`, {
@@ -116,15 +170,13 @@ export class DashboardComponent {
       });
 
       if (res.ok) {
-        alert('Pojazd został pomyślnie usunięty!');
         this.pobierzDane(); 
       } else {
         const error = await res.json();
         alert(error.message || 'Błąd podczas usuwania pojazdu');
       }
     } catch (err) {
-      console.error('Błąd zapytania usuwania:', err);
-      alert('Wystąpił błąd podczas usuwania.');
+      console.error('Błąd:', err);
     }
   }
 
