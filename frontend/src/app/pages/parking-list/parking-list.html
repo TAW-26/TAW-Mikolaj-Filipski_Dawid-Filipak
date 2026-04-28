@@ -21,6 +21,10 @@
   </div>
 
   <div class="max-w-7xl mx-auto py-12 px-4">
+    <div *ngIf="parkingi.length === 0" class="text-center text-gray-500 py-10">
+      Brak dostępnych parkingów w bazie danych. Dodaj jakiś, aby go tutaj zobaczyć!
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       
       <div *ngFor="let p of parkingi" class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-lg transition">
@@ -32,14 +36,14 @@
             <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded">
               Podziemny
             </span>
-            <span class="text-gray-900 font-bold">{{ p.cena }} PLN / h</span>
+            <span class="text-gray-900 font-bold">{{ p.cenaZaGodzine }} PLN / h</span>
           </div>
           
           <p class="text-green-600 text-sm font-medium mb-5">
-            Wolne miejsca: {{ p.liczbaMiejsc }}
+            Wolne miejsca: {{ p.wolneMiejsca }} / {{ p.liczbaMiejsc }}
           </p>
           
-          <button [routerLink]="['/parking', p._id]" 
+          <button (click)="sprawdzLogowanieIPrzejdz(p._id)" 
                   class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition">
             Rezerwuj
           </button>

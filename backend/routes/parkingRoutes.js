@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const admin = require('../middleware/admin'); // Nasz nowy middleware do sprawdzania uprawnień
+const admin = require('../middleware/admin');
 const Parking = require('../models/Parking');
-const Rezerwacja = require('../models/Rezerwacja'); // Potrzebne do obliczania dostępności
+const Rezerwacja = require('../models/Rezerwacja');
 
 // [GET] Pobierz wszystkie parkingi (Dostępne dla każdego) - WRAZ Z DOSTĘPNOŚCIĄ
 router.get('/', async (req, res) => {
@@ -11,19 +11,18 @@ router.get('/', async (req, res) => {
         const parkingi = await Parking.find().select('nazwa adres cenaZaGodzine liczbaMiejsc');
         const teraz = new Date();
 
-        // Dodajemy logikę liczenia dostępności dla każdego parkingu z listy na żywo
         const parkingiZDostepnoscia = await Promise.all(parkingi.map(async (parking) => {
             const zajeteMiejsca = await Rezerwacja.countDocuments({
                 parkingId: parking._id,
                 dataOd: { $lte: teraz },
                 dataDo: { $gt: teraz },
-                status: { $nin: ['anulowana', 'zakonczona'] } // Ignorujemy nieaktywne rezerwacje
+                status: { $nin: ['anulowana', 'zakonczona'] }
             });
 
             const wolne = parking.liczbaMiejsc - zajeteMiejsca;
 
             return {
-                ...parking._doc, // Skopiowanie podstawowych danych parkingu
+                ...parking._doc,
                 wolneMiejsca: wolne > 0 ? wolne : 0
             };
         }));
@@ -35,8 +34,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// [GET] Pobierz szczegóły jednego parkingu (Dostępne dla każdego)
-// Tutaj zwracamy wszystkie dane, bo to widok szczegółów konkretnego miejsca
+// [GET] Pobierz szczegóły jednego parkingu
 router.get('/:id', async (req, res) => {
     try {
         const parking = await Parking.findById(req.params.id);
@@ -50,7 +48,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// [GET] Sprawdź dostępność parkingu "na teraz" (Dostępne dla każdego)
+// [GET] Sprawdź dostępność parkingu "na teraz"
 router.get('/:id/dostepnosc', async (req, res) => {
     try {
         const parking = await Parking.findById(req.params.id);
@@ -58,13 +56,12 @@ router.get('/:id/dostepnosc', async (req, res) => {
             return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
         }
 
-        // Pobieramy obecny czas, by sprawdzić, ile aut aktualnie stoi na parkingu
         const teraz = new Date();
         const zajeteMiejsca = await Rezerwacja.countDocuments({
             parkingId: req.params.id,
-            dataOd: { $lte: teraz },  // Rezerwacja już się zaczęła...
-            dataDo: { $gt: teraz },   // ...ale jeszcze się nie skończyła
-            status: { $nin: ['anulowana', 'zakonczona'] } // Wykluczamy zakończone i anulowane
+            dataOd: { $lte: teraz },
+            dataDo: { $gt: teraz },
+            status: { $nin: ['anulowana', 'zakonczona'] }
         });
 
         const wolneMiejsca = parking.liczbaMiejsc - zajeteMiejsca;
@@ -92,13 +89,7 @@ router.post('/', [auth, admin], async (req, res) => {
             return res.status(400).json({ message: 'Wypełnij wszystkie wymagane pola' });
         }
 
-        const nowyParking = new Parking({
-            nazwa,
-            adres,
-            liczbaMiejsc,
-            cenaZaGodzine
-        });
-
+        const nowyParking = new Parking({ nazwa, adres, liczbaMiejsc, cenaZaGodzine });
         const zapisanyParking = await nowyParking.save();
         res.status(201).json(zapisanyParking);
     } catch (err) {
@@ -113,7 +104,7 @@ router.put('/:id', [auth, admin], async (req, res) => {
         const zaktualizowanyParking = await Parking.findByIdAndUpdate(
             req.params.id,
             req.body,
-            { new: true, runValidators: true } // Zwraca nowy obiekt i sprawdza typy danych
+            { new: true, runValidators: true }
         );
 
         if (!zaktualizowanyParking) {

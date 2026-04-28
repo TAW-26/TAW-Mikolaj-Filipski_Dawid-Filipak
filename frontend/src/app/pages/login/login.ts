@@ -10,7 +10,8 @@ import { Router, RouterModule } from '@angular/router';
   templateUrl: './login.html'
 })
 export class LoginComponent {
-  credentials = { email: '', password: '' };
+  // POPRAWKA: Używamy 'haslo' zamiast 'password'
+  credentials = { email: '', haslo: '' };
 
   constructor(private router: Router) {}
 
@@ -30,6 +31,7 @@ export class LoginComponent {
       }
     } catch (err) {
       console.error(err);
+      alert('Nie można połączyć się z serwerem!');
     }
   }
 }
