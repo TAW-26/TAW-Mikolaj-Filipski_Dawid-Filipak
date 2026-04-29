@@ -8,11 +8,10 @@ const Rezerwacja = require('../models/Rezerwacja');
 // [GET] Pobierz wszystkie parkingi (Dostępne dla każdego) - WRAZ Z DOSTĘPNOŚCIĄ
 router.get('/', async (req, res) => {
     try {
-        const parkingi = await Parking.find().select('nazwa adres cenaZaGodzine liczbaMiejsc');
+        const parkingi = await Parking.find().select('nazwa adres cenaZaGodzine liczbaMiejsc lat lng');
         const teraz = new Date();
 
         const parkingiZDostepnoscia = await Promise.all(parkingi.map(async (parking) => {
-            // ZMIANA: Zliczamy wszystkie rezerwacje (obecne i przyszłe), które jeszcze się nie zakończyły
             const zajeteMiejsca = await Rezerwacja.countDocuments({
                 parkingId: parking._id,
                 dataDo: { $gt: teraz },
@@ -29,7 +28,7 @@ router.get('/', async (req, res) => {
 
         res.json(parkingiZDostepnoscia);
     } catch (err) {
-        console.error(err);
+        console.error('Błąd pobierania parkingów:', err);
         res.status(500).json({ message: 'Błąd serwera podczas pobierania parkingów' });
     }
 });

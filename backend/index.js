@@ -4,6 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
+const axios = require('axios'); // Dodano do obsługi zapytań do API map
 
 const auth = require('./middleware/auth');
 const User = require('./models/User');
@@ -14,10 +15,10 @@ const Rezerwacja = require('./models/Rezerwacja');
 
 app.use(express.json());
 
-// ZAKTUALIZOWANA KONFIGURACJA CORS (Dodano 'PATCH')
+// --- 1. KONFIGURACJA CORS ---
 app.use(cors({
   origin: 'http://localhost:4200',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // <-- TUTAJ JEST PATCH
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   credentials: true
 }));
@@ -29,6 +30,36 @@ app.use(session({
   cookie: { httpOnly: true, secure: false }
 }));
 
+const handleGeocoding = async (request) => {
+  const { payload, method } = request;
+
+  if (method === 'post' && payload.adres && payload.miasto) {
+    const query = `${payload.adres}, ${payload.miasto}`;
+    try {
+      const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+        params: {
+          q: query,
+          format: 'json',
+          limit: 1
+        },
+        headers: { 
+          'User-Agent': 'SystemParkingowyAdmin/1.0' 
+        }
+      });
+
+      if (response.data && response.data.length > 0) {
+        payload.lat = parseFloat(response.data[0].lat);
+        payload.lng = parseFloat(response.data[0].lon);
+        console.log(`[Geocoding] Sukces: ${query} -> [${payload.lat}, ${payload.lng}]`);
+      } else {
+        console.warn(`[Geocoding] Nie znaleziono współrzędnych dla: ${query}`);
+      }
+    } catch (error) {
+      console.error('[Geocoding] Błąd API:', error.message);
+    }
+  }
+  return request;
+};
 const startAdmin = async () => {
   try {
     const { default: AdminJS } = await import('adminjs');
@@ -41,7 +72,20 @@ const startAdmin = async () => {
     const adminOptions = {
       resources: [
         { resource: User, options: { navigation: { name: 'Użytkownicy', icon: 'User' } } },
-        { resource: Parking, options: { navigation: { name: 'Zarządzanie', icon: 'Map' } } },
+        { 
+          resource: Parking, 
+          options: { 
+            navigation: { name: 'Zarządzanie', icon: 'Map' },
+            actions: {
+              new: { before: [handleGeocoding] },
+              edit: { before: [handleGeocoding] }
+            },
+            properties: {
+              lat: { isVisible: { list: true, edit: false, filter: true, show: true } },
+              lng: { isVisible: { list: true, edit: false, filter: true, show: true } }
+            }
+          } 
+        },
         { resource: Rezerwacja, options: { navigation: { name: 'Zarządzanie', icon: 'Calendar' } } },
         { resource: Pojazd, options: { navigation: { name: 'Zarządzanie', icon: 'Car' } } },
         { resource: Raport, options: { navigation: { name: 'Dane', icon: 'Document' } } },
@@ -65,9 +109,7 @@ const startAdmin = async () => {
             console.log(`Próba nieautoryzowanego dostępu: ${email}`);
             return false;
           }
-
           const isPasswordValid = await bcrypt.compare(password, user.haslo);
-          
           if (isPasswordValid) {
             return { email: user.email, title: user.email };
           }
@@ -99,13 +141,12 @@ const startAdmin = async () => {
   }
 };
 
-// --- 6. POŁĄCZENIE Z BAZĄ DANYCH ---
 const dbURI = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
 
 mongoose.connect(dbURI)
   .then(() => {
     console.log('Połączono z MongoDB Atlas');
-    startAdmin(); // Startujemy wszystko po udanym połączeniu z bazą
+    startAdmin();
   })
   .catch(err => {
     console.error('Błąd połączenia z bazą:', err);

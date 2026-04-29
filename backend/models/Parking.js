@@ -4,10 +4,13 @@ const parkingSchema = new mongoose.Schema({
   nazwa: { type: String, required: true },
   opis: { type: String },
   adres: { type: String, required: true },
+  miasto: { type: String, required: true},
   typ: { type: String, enum: ['podziemny', 'naziemny', 'wielopoziomowy'], default: 'naziemny' },
   cenaZaGodzine: { type: Number, required: true },
   status: { type: String, enum: ['otwarty', 'zamknięty', 'pełny'], default: 'otwarty' },
-  liczbaMiejsc: { type: Number, required: true }
+  liczbaMiejsc: { type: Number, required: true },
+  lat: { type: Number },
+  lng: { type: Number },
 });
 
 module.exports = mongoose.model('Parking', parkingSchema);
