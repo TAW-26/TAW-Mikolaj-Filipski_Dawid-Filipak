@@ -1,0 +1,84 @@
+<div class="max-w-7xl mx-auto py-10 px-4 flex flex-col md:flex-row gap-8">
+  <div class="w-full md:w-64 bg-white p-6 rounded-xl shadow-md h-fit">
+    <h3 class="font-bold text-lg mb-6">Panel Użytkownika</h3>
+    <ul class="space-y-2">
+      <li>
+        <button (click)="zmienZakladke('rezerwacje')" [class.bg-blue-50]="activeTab === 'rezerwacje'" class="w-full text-left p-3 rounded-lg font-medium transition hover:bg-gray-50">Moje Rezerwacje</button>
+      </li>
+      <li>
+        <button (click)="zmienZakladke('pojazdy')" [class.bg-blue-50]="activeTab === 'pojazdy'" class="w-full text-left p-3 rounded-lg font-medium transition hover:bg-gray-50">Moje Pojazdy</button>
+      </li>
+      <li>
+        <button (click)="zmienZakladke('ustawienia')" [class.bg-blue-50]="activeTab === 'ustawienia'" class="w-full text-left p-3 rounded-lg font-medium transition hover:bg-gray-50">Ustawienia</button>
+      </li>
+    </ul>
+  </div>
+
+  <div class="flex-grow bg-white p-8 rounded-xl shadow-md">
+    
+    <div *ngIf="activeTab === 'rezerwacje'">
+      <h2 class="text-2xl font-bold mb-6">Twoje Rezerwacje</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse min-w-full">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 uppercase text-xs">
+              <th class="p-4">Parking</th>
+              <th class="p-4">Od</th>
+              <th class="p-4">Do</th>
+              <th class="p-4">Status</th>
+              <th class="p-4">Akcja</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of rezerwacje" class="border-b hover:bg-gray-50">
+              <td class="p-4 font-medium">{{ r.parkingId?.nazwa || 'Nieznany parking' }}</td>
+              <td class="p-4 text-sm">{{ formatDate(r.dataOd) }}</td>
+              <td class="p-4 text-sm">{{ formatDate(r.dataDo) }}</td>
+              <td class="p-4">
+                <span *ngIf="okreslStatus(r) === 'aktywna'" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold uppercase">Aktywna</span>
+                <span *ngIf="okreslStatus(r) === 'anulowana'" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold uppercase">Anulowana</span>
+                <span *ngIf="okreslStatus(r) === 'zakonczona'" class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold uppercase">Zakończona</span>
+              </td>
+              <td class="p-4">
+                <button *ngIf="czyMoznaAnulowac(r)" (click)="anulujRezerwacje(r._id)" class="text-red-600 hover:text-white hover:bg-red-600 border border-red-600 px-3 py-1 rounded transition text-sm font-bold">
+                  Anuluj
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div *ngIf="rezerwacje.length === 0" class="p-4 text-gray-500 text-center">Brak rezerwacji.</div>
+      </div>
+    </div>
+
+    <div *ngIf="activeTab === 'pojazdy'">
+      <h2 class="text-2xl font-bold mb-6">Moje Pojazdy</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div *ngFor="let v of pojazdy" class="border p-4 rounded-lg flex justify-between items-center shadow-sm">
+          <div>
+            <p class="font-bold text-lg">{{ v.marka }} {{ v.model }}</p>
+            <p class="text-gray-500 bg-gray-100 inline-block px-2 py-1 rounded mt-1 font-mono text-sm border">{{ v.numer_rejestracyjny }}</p>
+          </div>
+          <button (click)="usunPojazd(v._id)" class="text-red-500 font-bold hover:bg-red-50 px-3 py-1 rounded transition">Usuń</button>
+        </div>
+        <div *ngIf="pojazdy.length === 0" class="text-gray-500 col-span-2">Nie dodałeś jeszcze żadnego pojazdu.</div>
+      </div>
+      
+      <div class="bg-gray-50 p-6 rounded-xl border">
+        <h3 class="font-bold mb-4">Dodaj nowy pojazd</h3>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input [(ngModel)]="nowyPojazd.marka" placeholder="Marka (np. Toyota)" class="border p-3 rounded-lg flex-grow outline-none focus:ring-2 focus:ring-blue-500">
+          <input [(ngModel)]="nowyPojazd.model" placeholder="Model (np. Yaris)" class="border p-3 rounded-lg flex-grow outline-none focus:ring-2 focus:ring-blue-500">
+          <input [(ngModel)]="nowyPojazd.rejestracja" placeholder="Nr rej. (np. WA12345)" class="border p-3 rounded-lg flex-grow outline-none focus:ring-2 focus:ring-blue-500">
+          <button (click)="dodajPojazd()" class="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition">Dodaj</button>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="activeTab === 'ustawienia'">
+      <h2 class="text-2xl font-bold mb-6">Ustawienia Konta</h2>
+      <p class="mb-4 text-gray-600">Więcej opcji pojawi się wkrótce.</p>
+    </div>
+
+  </div>
+</div>
