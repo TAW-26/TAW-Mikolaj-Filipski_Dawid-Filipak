@@ -87,13 +87,16 @@ router.get('/:id/dostepnosc', async (req, res) => {
 // [POST] Dodaj nowy parking (Tylko Admin)
 router.post('/', [auth, admin], async (req, res) => {
     try {
-        const { nazwa, adres, liczbaMiejsc, cenaZaGodzine } = req.body;
+        // ZMIANA: Dodano 'miasto' do destrukturyzacji
+        const { nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine } = req.body;
 
-        if (!nazwa || !adres || !liczbaMiejsc || !cenaZaGodzine) {
+        // ZMIANA: Sprawdzenie czy 'miasto' zostało przesłane
+        if (!nazwa || !adres || !miasto || !liczbaMiejsc || !cenaZaGodzine) {
             return res.status(400).json({ message: 'Wypełnij wszystkie wymagane pola' });
         }
 
-        const nowyParking = new Parking({ nazwa, adres, liczbaMiejsc, cenaZaGodzine });
+        // ZMIANA: Przekazanie 'miasto' do nowego obiektu
+        const nowyParking = new Parking({ nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine });
         const zapisanyParking = await nowyParking.save();
         res.status(201).json(zapisanyParking);
     } catch (err) {
