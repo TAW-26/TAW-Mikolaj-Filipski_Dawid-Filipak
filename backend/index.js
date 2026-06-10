@@ -19,8 +19,10 @@ const metricsMiddleware = require('./metrics/metricsMiddleware');
 app.use(express.json());
 app.use(metricsMiddleware);
 
+// POPRAWKA 1: CORS dynamicznie reaguje na środowisko Dockera lub lokalne
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:4200';
 app.use(cors({
-  origin: 'http://localhost:4200',
+  origin: allowedOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   credentials: true
@@ -115,10 +117,12 @@ app.use('/api/parkingi', require('./routes/parkingRoutes'));
 app.use('/api/rezerwacje', require('./routes/rezerwacjaRoutes'));
 app.use('/api/raporty', require('./routes/raportRoutes'));
 app.use('/api/pojazdy', require('./routes/pojazdRoutes'));
+
 app.get('/metrics', async (_req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
 });
+
 app.get('/test-obciazenia', (req, res) => {
   setTimeout(() => {
     res.send('Serwer w końcu odpowiada!');
@@ -145,15 +149,22 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Wystąpił błąd wewnętrzny serwera.' });
 });
 
-const dbURI = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
+// POPRAWKA 2: Wybór między lokalnym kontenerem MongoDB a Atlasem na podstawie zmiennej środowiskowej
+const fallbackDB = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
+const dbURI = process.env.MONGO_URI || fallbackDB;
 
 if (process.env.NODE_ENV !== 'test') {
   mongoose.connect(dbURI)
     .then(async () => {
-      console.log('Połączono z MongoDB Atlas');
+      // Ładny log informujący z czym się połączyliśmy
+      if (dbURI.includes('mongo-db')) {
+        console.log('Połączono z lokalnym MongoDB w kontenerze Docker');
+      } else {
+        console.log('Połączono z zewnętrznym MongoDB Atlas');
+      }
       await startAdmin();
       app.listen(3000, () => {
-        console.log('Serwer Express działa na http://localhost:3000');
+        console.log('Serwer Express działa na porcie 3000');
       });
     })
     .catch(err => {
@@ -161,6 +172,5 @@ if (process.env.NODE_ENV !== 'test') {
       process.exit(1);
     });
 }
-
 
 module.exports = { app };
