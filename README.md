@@ -17,12 +17,13 @@ Aplikacja pełni funkcję centralnej platformy, która pozwala użytkownikom spr
 ### Użytkownicy Niezalogowani
 - Przeglądanie dostępnych parkingów.
 - Wyszukiwanie według lokalizacji, typu, ceny lub liczby wolnych miejsc.
-- Podgląd szczegółów parkingu (liczba miejsc, stawki, godziny otwarcia).
+- Podgląd szczegółów parkingu (liczba miejsc, stawki).
 
 ### Użytkownicy Zalogowani
 - Tworzenie konta i logowanie.
 - Rezerwacja miejsc parkingowych.
 - Przegląd historii rezerwacji.
+- Dodawanie pojazdów
 
 ### Administratorzy (Pracownicy Miejscy)
 - Dodawanie, edytowanie i usuwanie parkingów.
@@ -34,13 +35,26 @@ Aplikacja pełni funkcję centralnej platformy, która pozwala użytkownikom spr
 
 ## Technologie
 
-| Warstwa          | Technologia                          |
-|------------------|--------------------------------------|
-| **Frontend** | Angular                              |
-| **Backend** | Node.js (Express)                    |
-| **Baza Danych** | MongoDB                              |
-| **Autentykacja** | JWT (JSON Web Token)                 |
-| **Autoryzacja** | OAuth2                               |
+## Technologie i Infrastruktura
+
+| Warstwa | Technologia | Komentarz / Przeznaczenie |
+| :--- | :--- | :--- |
+| **Frontend (Klient)** | Angular | Aplikacja webowa dla użytkowników końcowych (kierowców). |
+| **Backend API** | Node.js (Express.js) | Główna logika biznesowa, REST API oraz obsługa generowania PDF. |
+| **Panel Administratora** | AdminJS | System back-office zintegrowany jako middleware w Express.js. |
+| **Baza Danych** | Mongoose | NoSQL-owa baza danych. |
+| **Autentykacja** | JWT / Express Session | **JWT:** Dla Angulara (`x-auth-token`).<br>**Session-based:** Dla AdminJS (ciasteczka + bcrypt). |
+| **Autoryzacja** | RBAC (Role-Based Access Control) | Kontrola dostępu oparta na rolach (`admin` / `user`) w middleware Expressa. |
+| **Konteneryzacja** | Docker & Docker Compose | Architektura wielokontenerowa (`backend`, `frontend`, `mongodb`) separująca środowiska. |
+| **Monitorowanie** | Prometheus & Grafana | Zbieranie i wizualizacja metryk aplikacji (endpoint `/metrics`). |
+
+### Opis architektury środowiska
+
+Aplikacja została zaprojektowana w architekturze kontenerowej i jest zarządzana przy użyciu narzędzia **Docker Compose**. Środowisko uruchomieniowe zostało podzielone na niezależne kontenery:
+* `frontend_container` – obsługujący aplikację kliencką w Angularze,
+* `backend_container` – proces Node.js wraz z panelem AdminJS i logiką biznesową,
+* `mongodb_container` – lokalna instancja bazy danych (z możliwością przełączenia na MongoDB Atlas w środowisku produkcyjnym).
+
 
 ## Struktura Repozytorium
 - `/frontend` - Kod źródłowy aplikacji klienckiej (Angular)
@@ -49,17 +63,17 @@ Aplikacja pełni funkcję centralnej platformy, która pozwala użytkownikom spr
 ## Jak uruchomić projekt lokalnie?
 
 ### Wymagania wstępne
-- Node.js (v18+)
-- Angular CLI
-- Działająca instancja MongoDB (lokalna lub np. MongoDB Atlas)
+Do uruchomienia całego środowiska wymagane jest posiadanie zainstalowanego:
+- **Docker** - **Docker Compose** (w wersji zintegrowanej z Docker Desktop lub jako samodzielna wtyczka)
 
-### Uruchomienie Backendu
-1. Przejdź do folderu `/backend`
-2. Zainstaluj zależności: `npm install`
-3. Uruchom serwer: `node index.js` (plik wejściowy do utworzenia w kolejnych etapach)
+---
 
-### Uruchomienie Frontendu
-1. Przejdź do folderu `/frontend`
-2. Zainstaluj zależności: `npm install`
-3. Uruchom aplikację: `ng serve`
-4. Wejdź na `http://localhost:4200/` w przeglądarce.git add README.md
+### Szybki start (Docker)
+
+1. **Klonowanie i wejście do katalogu głównego projektu:**
+   Upewnij się, że znajdujesz się w folderze, w którym znajduje się plik `docker-compose.yml`.
+
+2. **Uruchomienie wszystkich usług (Frontend, Backend, DB):**
+   Wpisz w terminalu poniższe polecenie. Pobierze ono niezbędne obrazy bazowe, zbuduje kontenery i uruchomi je w tle:
+   ```bash
+   docker compose up -d --build
