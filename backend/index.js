@@ -108,6 +108,67 @@ const startAdmin = async () => {
 
                   return response;
                 }
+              },
+              generujRaport: {
+                actionType: 'record',
+                icon: 'Document',
+                label: 'Zapisz raport',
+
+                handler: async (request, response, context) => {
+                  try {
+                    const { record, currentAdmin } = context;
+
+                    if (!currentAdmin) {
+                      throw new Error('Brak autoryzacji');
+                    }
+
+                    const parkingId = record.params._id;
+
+                    const Parking = require('./models/Parking');
+                    const Rezerwacja = require('./models/Rezerwacja');
+                    const Raport = require('./models/Raport');
+                    const User = require('./models/User');
+
+                    const parking = await Parking.findById(parkingId);
+                    if (!parking) throw new Error('Parking nie znaleziony');
+
+                    const rezerwacje = await Rezerwacja.find({ parkingId });
+
+                    const calkowityDochod = rezerwacje.reduce(
+                      (sum, r) => sum + (r.cenaCalkowita || r.koszt || 0),
+                      0
+                    );
+
+                    const adminUser = await User.findOne({ email: currentAdmin.email });
+                    if (!adminUser) throw new Error('Nie znaleziono admina');
+                    
+                    await Raport.create({
+                      administratorId: adminUser._id,
+                      parkingId: parking._id,
+                      dane: `Raport: ${rezerwacje.length} rezerwacji, szacowany dochód całkowity: ${calkowityDochod.toFixed(2)} PLN`,
+                      typ: 'pdf'
+                    });
+
+                    return {
+                      record: record.toJSON(),
+                      notice: {
+                        message: `Raport dla "${parking.nazwa}" został zapisany.`,
+                        type: 'success'
+                      }
+                    };
+
+                  } catch (error) {
+                    console.error('Błąd zapisu raportu:', error);
+
+                    return {
+                      record: record.toJSON(),
+                      notice: {
+                        message: error.message || 'Błąd zapisu raportu',
+                        type: 'error'
+                      }
+                    };
+                  }
+                }
               }
             }
           }
