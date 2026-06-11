@@ -7,30 +7,60 @@ const Rezerwacja = require('../models/Rezerwacja');
 
 // [GET] Pobierz wszystkie parkingi (Dostępne dla każdego) - WRAZ Z DOSTĘPNOŚCIĄ
 router.get('/', async (req, res) => {
-    try {
-        const parkingi = await Parking.find().select('nazwa adres cenaZaGodzine liczbaMiejsc lat lng');
-        const teraz = new Date();
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const search = req.query.search || '';
 
-        const parkingiZDostepnoscia = await Promise.all(parkingi.map(async (parking) => {
-            const zajeteMiejsca = await Rezerwacja.countDocuments({
-                parkingId: parking._id,
-                dataDo: { $gt: teraz },
-                status: { $nin: ['anulowana', 'zakonczona'] }
-            });
+    const skip = (page - 1) * limit;
 
-            const wolne = parking.liczbaMiejsc - zajeteMiejsca;
+    const query = search
+      ? {
+          $or: [
+            { nazwa: { $regex: search, $options: 'i' } },
+            { adres: { $regex: search, $options: 'i' } },
+            { miasto: { $regex: search, $options: 'i' } }
+          ]
+        }
+      : {};
 
-            return {
-                ...parking._doc,
-                wolneMiejsca: wolne > 0 ? wolne : 0
-            };
-        }));
+    const total = await Parking.countDocuments(query);
 
-        res.json(parkingiZDostepnoscia);
-    } catch (err) {
-        console.error('Błąd pobierania parkingów:', err);
-        res.status(500).json({ message: 'Błąd serwera podczas pobierania parkingów' });
-    }
+    const parkingi = await Parking.find(query)
+      .select('nazwa adres miasto cenaZaGodzine liczbaMiejsc lat lng')
+      .skip(skip)
+      .limit(limit);
+
+    const teraz = new Date();
+
+    const parkingiZDostepnoscia = await Promise.all(
+      parkingi.map(async (parking) => {
+        const zajeteMiejsca = await Rezerwacja.countDocuments({
+          parkingId: parking._id,
+          dataDo: { $gt: teraz },
+          status: { $nin: ['anulowana', 'zakonczona'] }
+        });
+
+        const wolne = parking.liczbaMiejsc - zajeteMiejsca;
+
+        return {
+          ...parking._doc,
+          wolneMiejsca: wolne > 0 ? wolne : 0
+        };
+      })
+    );
+
+    res.json({
+      data: parkingiZDostepnoscia,
+      total,
+      page,
+      pages: Math.ceil(total / limit)
+    });
+
+  } catch (err) {
+    console.error('Błąd pobierania parkingów:', err);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
 });
 
 // [GET] Pobierz szczegóły jednego parkingu
@@ -55,11 +85,9 @@ router.get('/:id/dostepnosc', async (req, res) => {
             return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
         }
 
-        // ZMIANA: Pobieramy daty z zapytania URL. Jeśli ich brakuje, sprawdzamy dostępność "na teraz".
         const start = req.query.start ? new Date(req.query.start) : new Date();
         const koniec = req.query.end ? new Date(req.query.end) : new Date(start.getTime() + 1000);
 
-        // ZMIANA: Szukamy nakładających się rezerwacji w wybranym przedziale czasowym
         const zajeteMiejsca = await Rezerwacja.countDocuments({
             parkingId: req.params.id,
             status: { $nin: ['anulowana', 'zakonczona'] },
@@ -87,15 +115,12 @@ router.get('/:id/dostepnosc', async (req, res) => {
 // [POST] Dodaj nowy parking (Tylko Admin)
 router.post('/', [auth, admin], async (req, res) => {
     try {
-        // ZMIANA: Dodano 'miasto' do destrukturyzacji
         const { nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine } = req.body;
 
-        // ZMIANA: Sprawdzenie czy 'miasto' zostało przesłane
         if (!nazwa || !adres || !miasto || !liczbaMiejsc || !cenaZaGodzine) {
             return res.status(400).json({ message: 'Wypełnij wszystkie wymagane pola' });
         }
 
-        // ZMIANA: Przekazanie 'miasto' do nowego obiektu
         const nowyParking = new Parking({ nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine });
         const zapisanyParking = await nowyParking.save();
         res.status(201).json(zapisanyParking);
