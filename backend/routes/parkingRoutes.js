@@ -1,11 +1,33 @@
 const express = require('express');
 const router = express.Router();
+
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
+
 const Parking = require('../models/Parking');
 const Rezerwacja = require('../models/Rezerwacja');
 
-// [GET] Pobierz wszystkie parkingi (Dostępne dla każdego) - WRAZ Z DOSTĘPNOŚCIĄ
+const countReservations = async (parkingId, start = null, end = null) => {
+  const now = new Date();
+
+  const query = {
+    parkingId,
+    status: { $nin: ['anulowana', 'zakonczona'] }
+  };
+
+  if (start && end) {
+    query.dataOd = { $lt: end };
+    query.dataDo = { $gt: start };
+  } 
+  else {
+    query.dataOd = { $lt: now };
+    query.dataDo = { $gt: now };
+  }
+
+  return Rezerwacja.countDocuments(query);
+};
+
+//GET / - lista parkingów + wolne miejsca (TERAZ)
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -31,21 +53,15 @@ router.get('/', async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    const teraz = new Date();
-
     const parkingiZDostepnoscia = await Promise.all(
       parkingi.map(async (parking) => {
-        const zajeteMiejsca = await Rezerwacja.countDocuments({
-          parkingId: parking._id,
-          dataDo: { $gt: teraz },
-          status: { $nin: ['anulowana', 'zakonczona'] }
-        });
+        const zajete = await countReservations(parking._id);
 
-        const wolne = parking.liczbaMiejsc - zajeteMiejsca;
+        const wolne = parking.liczbaMiejsc - zajete;
 
         return {
           ...parking._doc,
-          wolneMiejsca: wolne > 0 ? wolne : 0
+          wolneMiejsca: Math.max(wolne, 0)
         };
       })
     );
@@ -63,104 +79,120 @@ router.get('/', async (req, res) => {
   }
 });
 
-// [GET] Pobierz szczegóły jednego parkingu
+// GET /:id - szczegóły parkingu
 router.get('/:id', async (req, res) => {
-    try {
-        const parking = await Parking.findById(req.params.id);
-        if (!parking) {
-            return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
-        }
-        res.json(parking);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd serwera podczas pobierania szczegółów parkingu' });
+  try {
+    const parking = await Parking.findById(req.params.id);
+
+    if (!parking) {
+      return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
     }
+
+    res.json(parking);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Błąd serwera podczas pobierania parkingu' });
+  }
 });
 
-// [GET] Sprawdź dostępność parkingu (na teraz lub w wybranym oknie czasowym)
+// GET /:id/dostepnosc - dostępność w czasie
 router.get('/:id/dostepnosc', async (req, res) => {
-    try {
-        const parking = await Parking.findById(req.params.id);
-        if (!parking) {
-            return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
-        }
+  try {
+    const parking = await Parking.findById(req.params.id);
 
-        const start = req.query.start ? new Date(req.query.start) : new Date();
-        const koniec = req.query.end ? new Date(req.query.end) : new Date(start.getTime() + 1000);
-
-        const zajeteMiejsca = await Rezerwacja.countDocuments({
-            parkingId: req.params.id,
-            status: { $nin: ['anulowana', 'zakonczona'] },
-            $or: [
-                { dataOd: { $lt: koniec }, dataDo: { $gt: start } }
-            ]
-        });
-
-        const wolneMiejsca = parking.liczbaMiejsc - zajeteMiejsca;
-
-        res.json({
-            parkingId: parking._id,
-            nazwa: parking.nazwa,
-            calkowitaLiczbaMiejsc: parking.liczbaMiejsc,
-            zajeteMiejsca: zajeteMiejsca,
-            wolneMiejsca: wolneMiejsca > 0 ? wolneMiejsca : 0
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd podczas sprawdzania dostępności parkingu' });
+    if (!parking) {
+      return res.status(404).json({ message: 'Nie znaleziono takiego parkingu' });
     }
+
+    const start = req.query.start
+      ? new Date(req.query.start)
+      : new Date();
+
+    const end = req.query.end
+      ? new Date(req.query.end)
+      : new Date(start.getTime() + 60 * 60 * 1000); // domyślnie 1h
+
+    const zajete = await countReservations(parking._id, start, end);
+
+    const wolne = parking.liczbaMiejsc - zajete;
+
+    res.json({
+      parkingId: parking._id,
+      nazwa: parking.nazwa,
+      calkowitaLiczbaMiejsc: parking.liczbaMiejsc,
+      zajeteMiejsca: zajete,
+      wolneMiejsca: Math.max(wolne, 0)
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Błąd podczas sprawdzania dostępności parkingu' });
+  }
 });
 
-// [POST] Dodaj nowy parking (Tylko Admin)
+// POST / - dodaj parking (ADMIN)
 router.post('/', [auth, admin], async (req, res) => {
-    try {
-        const { nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine } = req.body;
+  try {
+    const { nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine } = req.body;
 
-        if (!nazwa || !adres || !miasto || !liczbaMiejsc || !cenaZaGodzine) {
-            return res.status(400).json({ message: 'Wypełnij wszystkie wymagane pola' });
-        }
-
-        const nowyParking = new Parking({ nazwa, adres, miasto, liczbaMiejsc, cenaZaGodzine });
-        const zapisanyParking = await nowyParking.save();
-        res.status(201).json(zapisanyParking);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd podczas zapisywania parkingu' });
+    if (!nazwa || !adres || !miasto || !liczbaMiejsc || !cenaZaGodzine) {
+      return res.status(400).json({ message: 'Wypełnij wszystkie wymagane pola' });
     }
+
+    const nowy = new Parking({
+      nazwa,
+      adres,
+      miasto,
+      liczbaMiejsc,
+      cenaZaGodzine
+    });
+
+    const zapisany = await nowy.save();
+
+    res.status(201).json(zapisany);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Błąd podczas zapisywania parkingu' });
+  }
 });
 
-// [PUT] Aktualizuj dane parkingu (Tylko Admin)
+//PUT /:id - aktualizacja (ADMIN)
 router.put('/:id', [auth, admin], async (req, res) => {
-    try {
-        const zaktualizowanyParking = await Parking.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true }
-        );
+  try {
+    const updated = await Parking.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
-        if (!zaktualizowanyParking) {
-            return res.status(404).json({ message: 'Parking nie istnieje' });
-        }
-        res.json(zaktualizowanyParking);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd podczas aktualizacji parkingu' });
+    if (!updated) {
+      return res.status(404).json({ message: 'Parking nie istnieje' });
     }
+
+    res.json(updated);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Błąd podczas aktualizacji parkingu' });
+  }
 });
 
-// [DELETE] Usuń parking całkowicie (Tylko Admin)
+//DELETE /:id - usunięcie (ADMIN)
 router.delete('/:id', [auth, admin], async (req, res) => {
-    try {
-        const usunietyParking = await Parking.findByIdAndDelete(req.params.id);
-        if (!usunietyParking) {
-            return res.status(404).json({ message: 'Parking nie istnieje' });
-        }
-        res.json({ message: 'Parking został całkowicie usunięty' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd podczas usuwania parkingu' });
+  try {
+    const deleted = await Parking.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Parking nie istnieje' });
     }
+
+    res.json({ message: 'Parking został usunięty' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Błąd podczas usuwania parkingu' });
+  }
 });
 
 module.exports = router;

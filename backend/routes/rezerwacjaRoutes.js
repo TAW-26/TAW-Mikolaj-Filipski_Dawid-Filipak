@@ -17,14 +17,12 @@ router.post('/', auth, async (req, res) => {
         if (start >= koniec) return res.status(400).json({ message: 'Data zakończenia musi być późniejsza niż data rozpoczęcia.' });
         if (start < new Date()) return res.status(400).json({ message: 'Nie można rezerwować miejsc w przeszłości.' });
 
-        // Sprawdzenie, czy pojazd należy do użytkownika
         const pojazd = await Pojazd.findOne({ _id: pojazdId, wlascicielId: req.user.id });
         if (!pojazd) return res.status(404).json({ message: 'Nie znaleziono pojazdu przypisanego do Twojego konta.' });
 
         const parking = await Parking.findById(parkingId);
         if (!parking) return res.status(404).json({ message: 'Nie znaleziono takiego parkingu.' });
 
-        // Sprawdzenie wolnych miejsc
         const nakladajaceSieRezerwacje = await Rezerwacja.countDocuments({
             parkingId: parkingId,
             status: { $ne: 'anulowana' },
@@ -37,7 +35,6 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ message: 'Brak wolnych miejsc w wybranym terminie.' });
         }
 
-        // Obliczenie kosztu
         const czasWGodzinach = Math.ceil((koniec - start) / (1000 * 60 * 60));
         const kosztCalkowity = czasWGodzinach * parking.cenaZaGodzine;
 
@@ -63,7 +60,6 @@ router.post('/', auth, async (req, res) => {
 // [GET] Pobierz rezerwacje zalogowanego użytkownika
 router.get('/moje', auth, async (req, res) => {
     try {
-        // .populate ładuje szczegóły powiązanych obiektów zamiast pokazywać samo ID
         const rezerwacje = await Rezerwacja.find({ uzytkownikId: req.user.id })
             .populate('parkingId', 'nazwa adres')
             .populate('pojazdId', 'marka model rejestracja')
@@ -93,10 +89,9 @@ router.patch('/:id/przedluz', auth, async (req, res) => {
 
         const parking = await Parking.findById(rezerwacja.parkingId);
 
-        // Sprawdzamy, czy parking ma miejsca w "dodatkowym" czasie
         const kolizje = await Rezerwacja.countDocuments({
             parkingId: parking._id,
-            _id: { $ne: rezerwacja._id }, // Pomijamy naszą obecną rezerwację
+            _id: { $ne: rezerwacja._id },
             status: { $ne: 'anulowana' },
             dataOd: { $lt: nowaDataKoniec }, 
             dataDo: { $gt: rezerwacja.dataDo }
@@ -133,8 +128,6 @@ router.patch('/:id/zakoncz', auth, async (req, res) => {
         }
 
         rezerwacja.status = 'zakonczona';
-        // Opcjonalnie: możemy nadpisać dataDo aktualnym czasem wyjazdu
-        // rezerwacja.dataDo = new Date(); 
         
         await rezerwacja.save();
         res.json({ message: 'Rezerwacja zakończona pomyślnie', rezerwacja });
@@ -159,7 +152,7 @@ router.get('/', [auth, admin], async (req, res) => {
     }
 });
 
-// [PATCH] Anuluj rezerwację (Klient swoją, Admin każdą)
+// [PATCH] Anuluj rezerwację
 router.patch('/:id/anuluj', auth, async (req, res) => {
     try {
         const rezerwacja = await Rezerwacja.findById(req.params.id);

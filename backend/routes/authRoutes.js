@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const admin = require('../middleware/admin'); // Dodany import middleware'u admina
+const admin = require('../middleware/admin');
 
 router.post('/register', async (req, res) => {
   try {
@@ -80,10 +80,9 @@ router.get('/id', auth, async (req, res) => {
 });
 
 
-// [GET] Pobierz listę wszystkich użytkowników (Tylko Admin)
+// Endpoint do pobierania wszystkich użytkowników (Tylko Admin)
 router.get('/users', [auth, admin], async (req, res) => {
     try {
-        // Zwracamy wszystkich, ale bez haseł (-haslo)
         const users = await User.find().select('-haslo');
         res.json(users);
     } catch (err) {
@@ -91,7 +90,7 @@ router.get('/users', [auth, admin], async (req, res) => {
     }
 });
 
-// [PUT] Zmiana roli użytkownika (Tylko Admin)
+// Endpoint do zmiany roli użytkownika (Tylko Admin)
 router.put('/users/:id/rola', [auth, admin], async (req, res) => {
     try {
         const { rola } = req.body;
@@ -112,7 +111,7 @@ router.put('/users/:id/rola', [auth, admin], async (req, res) => {
     }
 });
 
-// [DELETE] Usunięcie użytkownika (Tylko Admin)
+// Endpoint do usuwania użytkownika (Tylko Admin)
 router.delete('/users/:id', [auth, admin], async (req, res) => {
     try {
         const user = await User.findByIdAndDelete(req.params.id);

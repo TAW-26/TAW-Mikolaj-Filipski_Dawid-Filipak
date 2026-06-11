@@ -19,7 +19,6 @@ const metricsMiddleware = require('./metrics/metricsMiddleware');
 app.use(express.json());
 app.use(metricsMiddleware);
 
-// POPRAWKA 1: CORS dynamicznie reaguje na środowisko Dockera lub lokalne
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:4200';
 app.use(cors({
   origin: allowedOrigin,
@@ -68,16 +67,50 @@ const startAdmin = async () => {
     const adminOptions = {
       resources: [
         { resource: User, options: { navigation: { name: 'Użytkownicy', icon: 'User' } } },
-        { 
-          resource: Parking, 
-          options: { 
+        {
+          resource: Parking,
+          options: {
             navigation: { name: 'Zarządzanie', icon: 'Map' },
-            actions: { new: { before: [handleGeocoding] }, edit: { before: [handleGeocoding] } },
+
             properties: {
               lat: { isVisible: { list: true, edit: false, filter: true, show: true } },
-              lng: { isVisible: { list: true, edit: false, filter: true, show: true } }
+              lng: { isVisible: { list: true, edit: false, filter: true, show: true } },
+
+              wolneMiejsca: {
+                isVisible: { list: true, show: true, edit: false, filter: false },
+                isVirtual: true
+              }
+            },
+
+            actions: {
+              list: {
+                after: async (response) => {
+                  const Rezerwacja = require('./models/Rezerwacja');
+                  const now = new Date();
+
+                  await Promise.all(
+                    response.records.map(async (record) => {
+
+                      const parkingId = record.params._id;
+
+                      const zajete = await Rezerwacja.countDocuments({
+                        parkingId,
+                        status: { $nin: ['anulowana', 'zakonczona'] },
+                        dataOd: { $lt: now },
+                        dataDo: { $gt: now }
+                      });
+
+                      const liczbaMiejsc = record.params.liczbaMiejsc || 0;
+
+                      record.params.wolneMiejsca = Math.max(liczbaMiejsc - zajete, 0);
+                    })
+                  );
+
+                  return response;
+                }
+              }
             }
-          } 
+          }
         },
         { resource: Rezerwacja, options: { navigation: { name: 'Zarządzanie', icon: 'Calendar' } } },
         { resource: Pojazd, options: { navigation: { name: 'Zarządzanie', icon: 'Car' } } },
@@ -123,12 +156,6 @@ app.get('/metrics', async (_req, res) => {
   res.end(await register.metrics());
 });
 
-app.get('/test-obciazenia', (req, res) => {
-  setTimeout(() => {
-    res.send('Serwer w końcu odpowiada!');
-  }, 10000); 
-});
-
 app.use((err, req, res, next) => {
   const errorLog = {
     czas_wystapienia: new Date().toISOString(),
@@ -149,14 +176,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Wystąpił błąd wewnętrzny serwera.' });
 });
 
-// POPRAWKA 2: Wybór między lokalnym kontenerem MongoDB a Atlasem na podstawie zmiennej środowiskowej
 const fallbackDB = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
 const dbURI = process.env.MONGO_URI || fallbackDB;
 
 if (process.env.NODE_ENV !== 'test') {
   mongoose.connect(dbURI)
     .then(async () => {
-      // Ładny log informujący z czym się połączyliśmy
       if (dbURI.includes('mongo-db')) {
         console.log('Połączono z lokalnym MongoDB w kontenerze Docker');
       } else {
