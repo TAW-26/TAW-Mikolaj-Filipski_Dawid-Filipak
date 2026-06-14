@@ -60,7 +60,7 @@ Aplikacja została zaprojektowana w architekturze kontenerowej i jest zarządzan
 - `/frontend` - Kod źródłowy aplikacji klienckiej (Angular)
 - `/backend` - Kod źródłowy API (Node.js)
 
-## Jak uruchomić projekt lokalnie?
+## Jak uruchomić projekt produkcyjnie?
 
 ### Wymagania wstępne
 Do uruchomienia całego środowiska wymagane jest posiadanie zainstalowanego:

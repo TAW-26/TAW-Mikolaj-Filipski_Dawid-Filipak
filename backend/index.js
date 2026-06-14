@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+require('./cron/reservationCron');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');

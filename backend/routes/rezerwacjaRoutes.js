@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const admin = require('../middleware/admin'); // Dla podglądu wszystkich rezerwacji
+const admin = require('../middleware/admin');
 const Rezerwacja = require('../models/Rezerwacja');
 const Parking = require('../models/Parking');
 const Pojazd = require('../models/Pojazd');
@@ -35,6 +35,31 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ message: 'Brak wolnych miejsc w wybranym terminie.' });
         }
 
+        const kolizjaPojazdu = await Rezerwacja.findOne({
+            pojazdId,
+            parkingId,
+            status: { $ne: 'anulowana' },
+            dataOd: { $lt: koniec },
+            dataDo: { $gt: start }
+        });
+
+        if (kolizjaPojazdu) {
+            return res.status(400).json({
+                message: 'Ten pojazd ma już rezerwację w tym czasie'
+            });
+        }
+
+        const count = await Rezerwacja.countDocuments({
+            parkingId,
+            status: { $ne: 'anulowana' },
+            dataOd: { $lt: koniec },
+            dataDo: { $gt: start }
+            });
+
+            if (count >= parking.liczbaMiejsc) {
+            return res.status(400).json({ message: 'Brak miejsc' });
+            }
+
         const czasWGodzinach = Math.ceil((koniec - start) / (1000 * 60 * 60));
         const kosztCalkowity = czasWGodzinach * parking.cenaZaGodzine;
 
@@ -62,8 +87,8 @@ router.get('/moje', auth, async (req, res) => {
     try {
         const rezerwacje = await Rezerwacja.find({ uzytkownikId: req.user.id })
             .populate('parkingId', 'nazwa adres')
-            .populate('pojazdId', 'marka model rejestracja')
-            .sort({ dataOd: -1 }); // Sortowanie od najnowszych
+            .populate('pojazdId', 'marka model numer_rejestracyjny')
+            .sort({ dataOd: -1 });
             
         res.json(rezerwacje);
     } catch (err) {
@@ -76,32 +101,53 @@ router.get('/moje', auth, async (req, res) => {
 router.patch('/:id/przedluz', auth, async (req, res) => {
     try {
         const { nowaDataDo } = req.body;
+        if (!nowaDataDo) {
+            return res.status(400).json({ message: 'Nie podano nowej daty zakończenia.' });
+        }
+
         const nowaDataKoniec = new Date(nowaDataDo);
 
         const rezerwacja = await Rezerwacja.findOne({ _id: req.params.id, uzytkownikId: req.user.id });
         if (!rezerwacja) return res.status(404).json({ message: 'Nie znaleziono rezerwacji' });
+        
         if (rezerwacja.status === 'zakonczona' || rezerwacja.status === 'anulowana') {
-            return res.status(400).json({ message: 'Nie można przedłużyć zakończonej lub anulowanej rezerwacji' });
+            return res.status(400).json({ message: 'Nie można przedłużyć zakończonej lub anulowanej rezerwacji.' });
         }
+        
         if (nowaDataKoniec <= rezerwacja.dataDo) {
             return res.status(400).json({ message: 'Nowa data zakończenia musi być późniejsza niż obecna.' });
         }
 
         const parking = await Parking.findById(rezerwacja.parkingId);
+        if (!parking) return res.status(404).json({ message: 'Nie znaleziono przypisanego parkingu.' });
 
-        const kolizje = await Rezerwacja.countDocuments({
+        const kolizjeMiejsc = await Rezerwacja.countDocuments({
             parkingId: parking._id,
-            _id: { $ne: rezerwacja._id },
+            _id: { $ne: rezerwacja._id }, // Ignorujemy samych siebie
             status: { $ne: 'anulowana' },
-            dataOd: { $lt: nowaDataKoniec }, 
-            dataDo: { $gt: rezerwacja.dataDo }
+            dataOd: { $lt: nowaDataKoniec },
+            dataDo: { $gt: rezerwacja.dataOd }
         });
 
-        if (kolizje >= parking.liczbaMiejsc) {
-            return res.status(400).json({ message: 'Brak miejsc na parkingu, nie można przedłużyć.' });
+        if (kolizjeMiejsc >= parking.liczbaMiejsc) {
+            return res.status(400).json({ message: 'Brak miejsc na parkingu w tym przedziale czasowym, nie można przedłużyć.' });
         }
 
-        // Przeliczanie dopłaty
+        const kolizjaNowegoCzasuPojazdu = await Rezerwacja.findOne({
+            pojazdId: rezerwacja.pojazdId,
+            parkingId: rezerwacja.parkingId, 
+            _id: { $ne: rezerwacja._id },    // Ignorujemy samych siebie
+            status: { $ne: 'anulowana' },
+            dataOd: { $lt: nowaDataKoniec },
+            dataDo: { $gt: rezerwacja.dataDo } // Szukamy konfliktów od obecnego końca do nowego końca
+        });
+
+        if (kolizjaNowegoCzasuPojazdu) {
+            return res.status(400).json({ 
+                message: 'Nie można przedłużyć. Pojazd ma kolejną rezerwację na tym parkingu w tym przedziale czasowym.' 
+            });
+        }
+
         const dodatkoweGodziny = Math.ceil((nowaDataKoniec - rezerwacja.dataDo) / (1000 * 60 * 60));
         const doplata = dodatkoweGodziny * parking.cenaZaGodzine;
 
@@ -109,11 +155,11 @@ router.patch('/:id/przedluz', auth, async (req, res) => {
         rezerwacja.koszt += doplata;
         
         await rezerwacja.save();
-        res.json({ message: 'Rezerwacja przedłużona', rezerwacja });
+        res.json({ message: 'Rezerwacja została pomyślnie przedłużona.', rezerwacja });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Błąd podczas przedłużania rezerwacji' });
+        console.error('Błąd podczas przedłużania rezerwacji:', err);
+        res.status(500).json({ message: 'Błąd serwera podczas przedłużania rezerwacji' });
     }
 });
 
@@ -158,7 +204,6 @@ router.patch('/:id/anuluj', auth, async (req, res) => {
         const rezerwacja = await Rezerwacja.findById(req.params.id);
         if (!rezerwacja) return res.status(404).json({ message: 'Nie znaleziono rezerwacji' });
 
-        // Sprawdzamy uprawnienia
         if (rezerwacja.uzytkownikId.toString() !== req.user.id && req.user.rola !== 'admin') {
             return res.status(403).json({ message: 'Brak uprawnień do anulowania' });
         }

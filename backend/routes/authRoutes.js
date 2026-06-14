@@ -8,11 +8,34 @@ const admin = require('../middleware/admin');
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, haslo, rola } = req.body;
+    const { email, haslo } = req.body;
+
+    if (!email || !haslo) {
+      return res.status(400).json({
+        message: 'Email i hasło są wymagane'
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        message: 'Niepoprawny adres email'
+      });
+    }
+
+    if (haslo.length < 8) {
+      return res.status(400).json({
+        message: 'Hasło musi mieć minimum 8 znaków'
+      });
+    }
 
     let user = await User.findOne({ email });
+
     if (user) {
-      return res.status(400).json({ message: "Użytkownik o takim adresie już istnieje" });
+      return res.status(400).json({
+        message: 'Użytkownik o takim adresie już istnieje'
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -21,14 +44,20 @@ router.post('/register', async (req, res) => {
     user = new User({
       email,
       haslo: hashedPassword,
-      rola: rola || 'klient'
+      rola: 'klient'
     });
 
     await user.save();
 
-    res.status(201).json({ message: "Użytkownik zarejestrowany!" });
+    res.status(201).json({
+      message: 'Użytkownik zarejestrowany'
+    });
+
   } catch (err) {
-    res.status(500).json({ message: "Błąd rejestracji", error: err.message });
+    res.status(500).json({
+      message: 'Błąd rejestracji',
+      error: err.message
+    });
   }
 });
 

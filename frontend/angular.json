@@ -73,7 +73,9 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "frontend:build:production"
+              "buildTarget": "frontend:build:production",
+              "prerender": false,
+              "ssr": false
             },
             "development": {
               "buildTarget": "frontend:build:development"
