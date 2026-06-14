@@ -1,86 +1,82 @@
 const express = require('express');
 const router = express.Router();
-const PDFDocument = require('pdfkit'); // Importujemy bibliotekę do PDF
-const fs = require('fs'); // Importujemy moduł systemu plików do sprawdzenia czcionki
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
 const auth = require('../middleware/auth');
-const admin = require('../middleware/admin'); // Raporty to sprawa dla admina
+const admin = require('../middleware/admin');
 const Raport = require('../models/Raport');
 const Rezerwacja = require('../models/Rezerwacja');
 const Parking = require('../models/Parking');
 
-// [POST] Generowanie raportu PDF dla konkretnego parkingu (Tylko Admin)
+// ==================== GENEROWANIE RAPORTU PDF ====================
 router.post('/generuj', [auth, admin], async (req, res) => {
     try {
         const { parkingId } = req.body;
-
-        if (!parkingId) {
-            return res.status(400).json({ message: 'Podaj ID parkingu do wygenerowania raportu.' });
-        }
+        if (!parkingId) return res.status(400).json({ message: 'Brak parkingId' });
 
         const parking = await Parking.findById(parkingId);
-        if (!parking) {
-            return res.status(404).json({ message: 'Nie znaleziono parkingu.' });
-        }
+        if (!parking) return res.status(404).json({ message: 'Parking nie znaleziony' });
 
-        // Pobieramy wszystkie rezerwacje dla tego parkingu
-        const rezerwacje = await Rezerwacja.find({ parkingId: parking._id });
+        const rezerwacje = await Rezerwacja.find({ parkingId })
+            .populate('pojazdId', 'marka model nrRejestracyjny')
+            .sort({ dataOd: -1 });
 
-        // Obliczamy statystyki - NAPRAWIONY BŁĄD NaN (sprawdza oba możliwe pola w bazie)
-        const calkowityDochod = rezerwacje.reduce((suma, rez) => suma + (rez.cenaCalkowita || rez.koszt || 0), 0);
-        
-        // Formatyzujemy dane w tekst, by zapisać do bazy
-        const tekstRaportu = `Wygenerowano raport dla parkingu "${parking.nazwa}". Całkowita liczba rezerwacji: ${rezerwacje.length}. Przewidywany dochód: ${calkowityDochod} PLN.`;
-        // Zapisujemy ślad w bazie danych
+        const calkowityDochod = rezerwacje.reduce((sum, r) => sum + (r.cenaCalkowita || r.koszt || 0), 0);
+
         const nowyRaport = new Raport({
             administratorId: req.user.id,
             parkingId: parking._id,
-            dane: tekstRaportu
+            dane: `Raport dla ${parking.nazwa} - ${rezerwacje.length} rezerwacji, dochód: ${calkowityDochod} PLN`,
+            typ: 'pdf'
         });
         await nowyRaport.save();
 
-        // ---------------------------------------------
-        // TWORZENIE DOKUMENTU PDF W LOCIE
-        // ---------------------------------------------
-        const doc = new PDFDocument({ margin: 50 });
-
-        // Ustawiamy nagłówki odpowiedzi
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=raport_${parking.nazwa.replace(/\s+/g, '_')}.pdf`);
+        res.setHeader('Content-Disposition', `attachment; filename=raport_${parking.nazwa.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
 
-        // Podpinamy strumień PDF bezpośrednio pod odpowiedź HTTP
         doc.pipe(res);
 
-        // NAPRAWIONY BŁĄD POLSKICH ZNAKÓW
-        // Sprawdzamy czy plik z czcionką istnieje, aby aplikacja nie "wywaliła" się, jeśli zapomnisz go pobrać
-        if (fs.existsSync('./Roboto-Regular.ttf')) {
-            doc.font('./Roboto-Regular.ttf');
+        if (fs.existsSync('./Roboto-Regular.ttf')) doc.font('./Roboto-Regular.ttf');
+
+        doc.fontSize(26).text('RAPORT PARKINGU', { align: 'center' });
+        doc.moveDown();
+
+        doc.fontSize(18).text(parking.nazwa, { align: 'center' });
+        doc.fontSize(12).text(`${parking.adres}, ${parking.miasto}`);
+        doc.text(`Wygenerowano: ${new Date().toLocaleString('pl-PL')}`);
+        doc.moveDown(2);
+
+        doc.fontSize(16).text('Podsumowanie', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(14).text(`Liczba rezerwacji: ${rezerwacje.length}`);
+        doc.text(`Całkowity dochód: ${calkowityDochod.toFixed(2)} PLN`);
+
+        doc.moveDown();
+
+        if (rezerwacje.length > 0) {
+            doc.fontSize(14).text('Ostatnie rezerwacje:');
+            doc.moveDown(0.5);
+
+            rezerwacje.slice(0, 15).forEach((rez, i) => {  // max 15 na raporcie
+                const od = new Date(rez.dataOd).toLocaleDateString('pl-PL');
+                const dod = new Date(rez.dataDo).toLocaleDateString('pl-PL');
+                const pojazd = rez.pojazdId ? `${rez.pojazdId.marka} ${rez.pojazdId.model} (${rez.pojazdId.nrRejestracyjny})` : 'Brak danych';
+                
+                doc.fontSize(11).text(`${i+1}. ${od} - ${dod} | ${pojazd} | ${rez.cenaCalkowita || rez.koszt} PLN`);
+            });
         }
 
-        // Rysujemy po pliku PDF
-        doc.fontSize(24).text('Raport Parkingu', { align: 'center' });
-        doc.moveDown();
-        
-        doc.fontSize(16).text(`Nazwa parkingu: ${parking.nazwa}`);
-        doc.fontSize(12).text(`Lokalizacja: ${parking.lokalizacja}`);
-        doc.text(`Data wygenerowania: ${new Date().toLocaleString('pl-PL')}`);
         doc.moveDown(2);
+        doc.fontSize(10).fillColor('gray').text(`Wygenerowano przez: ${req.user.email || req.user.id}`, { align: 'center' });
 
-        // Proste podsumowanie
-        doc.fontSize(16).text('Statystyki całkowite', { underline: true });
-        doc.moveDown();
-        doc.fontSize(14).text(`Liczba wszystkich rezerwacji: ${rezerwacje.length}`);
-        doc.text(`Całkowity przychód z rezerwacji: ${calkowityDochod.toFixed(2)} PLN`);
-        doc.moveDown(2);
-
-        doc.fontSize(10).fillColor('gray').text(`Wygenerowano przez system (ID Administratora: ${req.user.id})`, { align: 'center' });
-
-        // Kończymy i zamykamy dokument
         doc.end();
 
     } catch (err) {
         console.error(err);
         if (!res.headersSent) {
-            res.status(500).json({ message: 'Błąd podczas generowania raportu PDF' });
+            res.status(500).json({ message: 'Błąd generowania raportu' });
         }
     }
 });
@@ -91,7 +87,7 @@ router.get('/', [auth, admin], async (req, res) => {
         const raporty = await Raport.find()
             .populate('administratorId', 'email')
             .populate('parkingId', 'nazwa')
-            .sort({ dataUtworzenia: -1 }); // Od najnowszych
+            .sort({ dataUtworzenia: -1 });
             
         res.json(raporty);
     } catch (err) {

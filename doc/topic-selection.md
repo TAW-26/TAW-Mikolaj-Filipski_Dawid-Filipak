@@ -41,11 +41,14 @@ Projekt ma na celu:
 
 ## Technologie
 
-| Warstwa           | Technologia                           |
-|------------------|--------------------------------------|
-| Frontend         | Angular                               |
-| Backend          | Node.js                               |
-| Baza Danych      | MongoDB                               |
-| Autentykacja     | JWT (JSON Web Token)                  |
-| Autoryzacja      | OAuth2                                |
+| Warstwa | Technologia | Komentarz / Przeznaczenie |
+| :--- | :--- | :--- |
+| **Frontend (Klient)** | Angular | Aplikacja webowa dla użytkowników końcowych (kierowców). |
+| **Backend API** | Node.js (Express.js) | Główna logika biznesowa, REST API oraz obsługa generowania PDF. |
+| **Panel Administratora** | AdminJS | System back-office zintegrowany jako middleware w Express.js. |
+| **Baza Danych** | Mongoose | NoSQL-owa baza danych. |
+| **Autentykacja** | JWT / Express Session | **JWT:** Dla Angulara (`x-auth-token`).<br>**Session-based:** Dla AdminJS (ciasteczka + bcrypt). |
+| **Autoryzacja** | RBAC (Role-Based Access Control) | Kontrola dostępu oparta na rolach (`admin` / `user`) w middleware Expressa. |
+| **Konteneryzacja** | Docker & Docker Compose | Architektura wielokontenerowa (`backend`, `frontend`, `mongodb`) separująca środowiska. |
+| **Monitorowanie** | Prometheus & Grafana | Zbieranie i wizualizacja metryk aplikacji (endpoint `/metrics`). |
 

@@ -4,15 +4,38 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const admin = require('../middleware/admin'); // Dodany import middleware'u admina
+const admin = require('../middleware/admin');
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, haslo, rola } = req.body;
+    const { email, haslo } = req.body;
+
+    if (!email || !haslo) {
+      return res.status(400).json({
+        message: 'Email i hasło są wymagane'
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        message: 'Niepoprawny adres email'
+      });
+    }
+
+    if (haslo.length < 8) {
+      return res.status(400).json({
+        message: 'Hasło musi mieć minimum 8 znaków'
+      });
+    }
 
     let user = await User.findOne({ email });
+
     if (user) {
-      return res.status(400).json({ message: "Użytkownik o takim adresie już istnieje" });
+      return res.status(400).json({
+        message: 'Użytkownik o takim adresie już istnieje'
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -21,14 +44,20 @@ router.post('/register', async (req, res) => {
     user = new User({
       email,
       haslo: hashedPassword,
-      rola: rola || 'klient'
+      rola: 'klient'
     });
 
     await user.save();
 
-    res.status(201).json({ message: "Użytkownik zarejestrowany!" });
+    res.status(201).json({
+      message: 'Użytkownik zarejestrowany'
+    });
+
   } catch (err) {
-    res.status(500).json({ message: "Błąd rejestracji", error: err.message });
+    res.status(500).json({
+      message: 'Błąd rejestracji',
+      error: err.message
+    });
   }
 });
 
@@ -80,10 +109,9 @@ router.get('/id', auth, async (req, res) => {
 });
 
 
-// [GET] Pobierz listę wszystkich użytkowników (Tylko Admin)
+// Endpoint do pobierania wszystkich użytkowników (Tylko Admin)
 router.get('/users', [auth, admin], async (req, res) => {
     try {
-        // Zwracamy wszystkich, ale bez haseł (-haslo)
         const users = await User.find().select('-haslo');
         res.json(users);
     } catch (err) {
@@ -91,7 +119,7 @@ router.get('/users', [auth, admin], async (req, res) => {
     }
 });
 
-// [PUT] Zmiana roli użytkownika (Tylko Admin)
+// Endpoint do zmiany roli użytkownika (Tylko Admin)
 router.put('/users/:id/rola', [auth, admin], async (req, res) => {
     try {
         const { rola } = req.body;
@@ -112,7 +140,7 @@ router.put('/users/:id/rola', [auth, admin], async (req, res) => {
     }
 });
 
-// [DELETE] Usunięcie użytkownika (Tylko Admin)
+// Endpoint do usuwania użytkownika (Tylko Admin)
 router.delete('/users/:id', [auth, admin], async (req, res) => {
     try {
         const user = await User.findByIdAndDelete(req.params.id);

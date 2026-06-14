@@ -1,4 +1,3 @@
-// Importujemy metryki z sąsiedniego pliku index.js
 const { 
   activeConnections, 
   httpRequestsTotal, 
@@ -11,7 +10,7 @@ function metricsMiddleware(req, res, next) {
 
   res.on('finish', () => {
     const durationMs = Date.now() - startMs;
-    const route = req.route?.path ?? req.path;  // wzorzec, nie konkretna wartość
+    const route = req.route?.path ?? req.path;
     const labels = { method: req.method, route, status_code: String(res.statusCode) };
 
     httpRequestsTotal.inc(labels);

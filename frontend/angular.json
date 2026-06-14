@@ -68,9 +68,14 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "allowedHosts": ["localhost", "127.0.0.1", "0.0.0.0"]
+          },
           "configurations": {
             "production": {
-              "buildTarget": "frontend:build:production"
+              "buildTarget": "frontend:build:production",
+              "prerender": false,
+              "ssr": false
             },
             "development": {
               "buildTarget": "frontend:build:development"

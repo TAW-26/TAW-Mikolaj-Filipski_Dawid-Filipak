@@ -15,8 +15,8 @@ export class ParkingDetailsComponent implements OnInit {
   formData = { pojazdId: '', dataOd: '', dataDo: '' };
   id: string | null = '';
   private isBrowser: boolean;
+  kosztRezerwacji: number | null = null;
 
-  // NOWE ZMIENNE DO DOSTĘPNOŚCI NA ŻYWO:
   wolneMiejscaWybranyTermin: number | null = null;
   sprawdzamDostepnosc: boolean = false;
 
@@ -67,7 +67,31 @@ export class ParkingDetailsComponent implements OnInit {
       .catch(err => console.error('Błąd pobierania pojazdów:', err));
   }
 
-  // --- NOWA FUNKCJA DO SPRAWDZANIA MIEJSC NA ŻYWO ---
+  obliczKoszt() {
+    if (!this.formData.dataOd || !this.formData.dataDo || !this.parking) {
+      this.kosztRezerwacji = null;
+      return;
+    }
+
+    const start = new Date(this.formData.dataOd);
+    const end = new Date(this.formData.dataDo);
+
+    if (start >= end) {
+      this.kosztRezerwacji = null;
+      return;
+    }
+
+    const ms = end.getTime() - start.getTime();
+    
+    const dokladneGodziny = ms / (1000 * 60 * 60);
+    
+    const platneGodziny = Math.ceil(dokladneGodziny);
+
+    this.kosztRezerwacji = parseFloat(
+      (platneGodziny * this.parking.cenaZaGodzine).toFixed(2)
+    );
+  }
+
   sprawdzDostepnosc() {
     if (!this.formData.dataOd || !this.formData.dataDo || !this.isBrowser) {
       this.wolneMiejscaWybranyTermin = null;
@@ -112,10 +136,18 @@ export class ParkingDetailsComponent implements OnInit {
         return;
       }
 
+      const payload = {
+        parkingId: this.id,
+        pojazdId: this.formData.pojazdId,
+
+        dataOd: new Date(this.formData.dataOd).toISOString(),
+        dataDo: new Date(this.formData.dataDo).toISOString()
+      };
+
       const response = await fetch('http://localhost:3000/api/rezerwacje', {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ parkingId: this.id, ...this.formData })
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {

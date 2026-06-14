@@ -17,6 +17,10 @@ export class DashboardComponent {
   nowyPojazd = { marka: '', model: '', rejestracja: '' };
   private isBrowser: boolean;
 
+  showProlongModal = false;
+  selectedReservation: any = null;
+  nowaDataDo: string = '';
+
   constructor(
     private cdr: ChangeDetectorRef, 
     private router: Router,
@@ -96,7 +100,7 @@ export class DashboardComponent {
 
   async anulujRezerwacje(id: string) {
     if (!this.isBrowser) return;
-    if (!confirm('Czy na pewno chcesz anulować tę rezerwację?')) return;
+    if (!confirm('Czy na pewno chcesz anulować tę rezerwację? Pieniądze zostaną zwrócone.')) return;
 
     try {
       const res = await fetch(`http://localhost:3000/api/rezerwacje/${id}/anuluj`, {
@@ -184,4 +188,56 @@ export class DashboardComponent {
     if (!d) return 'Brak danych';
     return new Date(d).toLocaleString(); 
   }
+
+  otworzModalPrzedluzenia(r: any) {
+    this.selectedReservation = r;
+    // Formatujemy obecną datę końcową do formatu akceptowanego przez <input type="datetime-local">
+    const date = new Date(r.dataDo);
+    // Korekta strefy czasowej do ISO string (YYYY-MM-DDTHH:mm)
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    this.nowaDataDo = new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+    this.showProlongModal = true;
+  }
+
+  zamknijModal() {
+    this.showProlongModal = false;
+    this.selectedReservation = null;
+    this.nowaDataDo = '';
+  }
+
+  async przedluzRezerwacje() {
+    if (!this.isBrowser || !this.selectedReservation) return;
+
+    const nowaData = new Date(this.nowaDataDo); // Data utworzona z inputa (lokalna)
+    const staraData = new Date(this.selectedReservation.dataDo);
+
+    if (nowaData <= staraData) {
+      alert('Nowa data zakończenia musi być późniejsza niż obecna.');
+      return;
+    }
+
+    const isoDataDoBackendu = nowaData.toISOString();
+
+    try {
+      const res = await fetch(`http://localhost:3000/api/rezerwacje/${this.selectedReservation._id}/przedluz`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ nowaDataDo: isoDataDoBackendu })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.message || 'Rezerwacja przedłużona pomyślnie!');
+        this.zamknijModal();
+        this.pobierzDane(); 
+      } else {
+        alert(data.message || 'Błąd podczas przedłużania rezerwacji.');
+      }
+    } catch (err) {
+      console.error('Błąd połączenia:', err);
+      alert('Błąd połączenia z serwerem.');
+    }
+  }
+
 }

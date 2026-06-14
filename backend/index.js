@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+require('./cron/reservationCron');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
@@ -19,8 +20,9 @@ const metricsMiddleware = require('./metrics/metricsMiddleware');
 app.use(express.json());
 app.use(metricsMiddleware);
 
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:4200';
 app.use(cors({
-  origin: 'http://localhost:4200',
+  origin: allowedOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   credentials: true
@@ -66,16 +68,111 @@ const startAdmin = async () => {
     const adminOptions = {
       resources: [
         { resource: User, options: { navigation: { name: 'Użytkownicy', icon: 'User' } } },
-        { 
-          resource: Parking, 
-          options: { 
+        {
+          resource: Parking,
+          options: {
             navigation: { name: 'Zarządzanie', icon: 'Map' },
-            actions: { new: { before: [handleGeocoding] }, edit: { before: [handleGeocoding] } },
+
             properties: {
               lat: { isVisible: { list: true, edit: false, filter: true, show: true } },
-              lng: { isVisible: { list: true, edit: false, filter: true, show: true } }
+              lng: { isVisible: { list: true, edit: false, filter: true, show: true } },
+
+              wolneMiejsca: {
+                isVisible: { list: true, show: true, edit: false, filter: false },
+                isVirtual: true
+              }
+            },
+
+            actions: {
+              list: {
+                after: async (response) => {
+                  const Rezerwacja = require('./models/Rezerwacja');
+                  const now = new Date();
+
+                  await Promise.all(
+                    response.records.map(async (record) => {
+
+                      const parkingId = record.params._id;
+
+                      const zajete = await Rezerwacja.countDocuments({
+                        parkingId,
+                        status: { $nin: ['anulowana', 'zakonczona'] },
+                        dataOd: { $lt: now },
+                        dataDo: { $gt: now }
+                      });
+
+                      const liczbaMiejsc = record.params.liczbaMiejsc || 0;
+
+                      record.params.wolneMiejsca = Math.max(liczbaMiejsc - zajete, 0);
+                    })
+                  );
+
+                  return response;
+                }
+              },
+              generujRaport: {
+                actionType: 'record',
+                icon: 'Document',
+                label: 'Zapisz raport',
+
+                handler: async (request, response, context) => {
+                  try {
+                    const { record, currentAdmin } = context;
+
+                    if (!currentAdmin) {
+                      throw new Error('Brak autoryzacji');
+                    }
+
+                    const parkingId = record.params._id;
+
+                    const Parking = require('./models/Parking');
+                    const Rezerwacja = require('./models/Rezerwacja');
+                    const Raport = require('./models/Raport');
+                    const User = require('./models/User');
+
+                    const parking = await Parking.findById(parkingId);
+                    if (!parking) throw new Error('Parking nie znaleziony');
+
+                    const rezerwacje = await Rezerwacja.find({ parkingId });
+
+                    const calkowityDochod = rezerwacje.reduce(
+                      (sum, r) => sum + (r.cenaCalkowita || r.koszt || 0),
+                      0
+                    );
+
+                    const adminUser = await User.findOne({ email: currentAdmin.email });
+                    if (!adminUser) throw new Error('Nie znaleziono admina');
+                    
+                    await Raport.create({
+                      administratorId: adminUser._id,
+                      parkingId: parking._id,
+                      dane: `Raport: ${rezerwacje.length} rezerwacji, szacowany dochód całkowity: ${calkowityDochod.toFixed(2)} PLN`,
+                      typ: 'pdf'
+                    });
+
+                    return {
+                      record: record.toJSON(),
+                      notice: {
+                        message: `Raport dla "${parking.nazwa}" został zapisany.`,
+                        type: 'success'
+                      }
+                    };
+
+                  } catch (error) {
+                    console.error('Błąd zapisu raportu:', error);
+
+                    return {
+                      record: record.toJSON(),
+                      notice: {
+                        message: error.message || 'Błąd zapisu raportu',
+                        type: 'error'
+                      }
+                    };
+                  }
+                }
+              }
             }
-          } 
+          }
         },
         { resource: Rezerwacja, options: { navigation: { name: 'Zarządzanie', icon: 'Calendar' } } },
         { resource: Pojazd, options: { navigation: { name: 'Zarządzanie', icon: 'Car' } } },
@@ -115,14 +212,10 @@ app.use('/api/parkingi', require('./routes/parkingRoutes'));
 app.use('/api/rezerwacje', require('./routes/rezerwacjaRoutes'));
 app.use('/api/raporty', require('./routes/raportRoutes'));
 app.use('/api/pojazdy', require('./routes/pojazdRoutes'));
+
 app.get('/metrics', async (_req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
-});
-app.get('/test-obciazenia', (req, res) => {
-  setTimeout(() => {
-    res.send('Serwer w końcu odpowiada!');
-  }, 10000); 
 });
 
 app.use((err, req, res, next) => {
@@ -145,15 +238,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Wystąpił błąd wewnętrzny serwera.' });
 });
 
-const dbURI = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
+const fallbackDB = 'mongodb://mikolajfili_db_user:LzxSdAqTTUfrnp8@ac-tk18nj2-shard-00-00.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-01.zfkbmjv.mongodb.net:27017,ac-tk18nj2-shard-00-02.zfkbmjv.mongodb.net:27017/?ssl=true&replicaSet=atlas-eadype-shard-0&authSource=admin&appName=Cluster0';
+const dbURI = process.env.MONGO_URI || fallbackDB;
 
 if (process.env.NODE_ENV !== 'test') {
   mongoose.connect(dbURI)
     .then(async () => {
-      console.log('Połączono z MongoDB Atlas');
+      if (dbURI.includes('mongo-db')) {
+        console.log('Połączono z lokalnym MongoDB w kontenerze Docker');
+      } else {
+        console.log('Połączono z zewnętrznym MongoDB Atlas');
+      }
       await startAdmin();
       app.listen(3000, () => {
-        console.log('Serwer Express działa na http://localhost:3000');
+        console.log('Serwer Express działa na porcie 3000');
       });
     })
     .catch(err => {
@@ -161,6 +259,5 @@ if (process.env.NODE_ENV !== 'test') {
       process.exit(1);
     });
 }
-
 
 module.exports = { app };
