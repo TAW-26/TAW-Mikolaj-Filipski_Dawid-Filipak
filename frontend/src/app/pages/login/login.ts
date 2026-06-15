@@ -10,7 +10,6 @@ import { Router, RouterModule } from '@angular/router';
   templateUrl: './login.html'
 })
 export class LoginComponent {
-  // POPRAWKA: Używamy 'haslo' zamiast 'password'
   credentials = { email: '', haslo: '' };
 
   constructor(private router: Router) {}

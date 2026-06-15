@@ -29,7 +29,6 @@ export class DashboardComponent {
     this.isBrowser = isPlatformBrowser(platformId);
     
     afterNextRender(() => {
-      // Przywracanie ostatniej zakładki
       const zapisanaZakladka = localStorage.getItem('aktywnaZakladkaPanelu');
       if (zapisanaZakladka) {
         this.activeTab = zapisanaZakladka;
@@ -46,7 +45,6 @@ export class DashboardComponent {
     }
   }
 
-  // Wymuszony typ by TypeScript był zadowolony
   getHeaders(): Record<string, string> {
     const token = this.isBrowser ? (localStorage.getItem('token') || '') : '';
     return {
@@ -61,7 +59,6 @@ export class DashboardComponent {
 
     const headers = this.getHeaders();
     
-    // Pobieranie rezerwacji
     fetch('http://localhost:3000/api/rezerwacje/moje', { headers })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
@@ -70,7 +67,6 @@ export class DashboardComponent {
       })
       .catch(err => console.error('Błąd pobierania rezerwacji:', err));
     
-    // Pobieranie pojazdów
     fetch('http://localhost:3000/api/pojazdy', { headers })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
@@ -86,14 +82,12 @@ export class DashboardComponent {
     if (r.status === 'anulowana') return 'anulowana';
     if (r.status === 'zakonczona') return 'zakonczona';
     
-    // Jeśli czas wyjazdu minął, wizualnie wymuszamy status "zakończona"
     if (new Date(r.dataDo) < new Date()) return 'zakonczona';
     
     return 'aktywna';
   }
 
   czyMoznaAnulowac(r: any): boolean {
-    // Można anulować tylko aktywne rezerwacje, które jeszcze się nie zaczęły
     if (this.okreslStatus(r) !== 'aktywna') return false;
     return new Date(r.dataOd) > new Date();
   }
@@ -110,9 +104,8 @@ export class DashboardComponent {
 
       if (res.ok) {
         alert('Rezerwacja została pomyślnie anulowana.');
-        this.pobierzDane(); // Odśwież listę po anulowaniu
+        this.pobierzDane();
       } else {
-        // Bezpieczne pobranie błędu (chroni przed awarią gdy serwer zwraca HTML zamiast JSON)
         const errorText = await res.text();
         try {
           const error = JSON.parse(errorText);
@@ -191,9 +184,7 @@ export class DashboardComponent {
 
   otworzModalPrzedluzenia(r: any) {
     this.selectedReservation = r;
-    // Formatujemy obecną datę końcową do formatu akceptowanego przez <input type="datetime-local">
     const date = new Date(r.dataDo);
-    // Korekta strefy czasowej do ISO string (YYYY-MM-DDTHH:mm)
     const tzOffset = date.getTimezoneOffset() * 60000;
     this.nowaDataDo = new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
     this.showProlongModal = true;
@@ -208,7 +199,7 @@ export class DashboardComponent {
   async przedluzRezerwacje() {
     if (!this.isBrowser || !this.selectedReservation) return;
 
-    const nowaData = new Date(this.nowaDataDo); // Data utworzona z inputa (lokalna)
+    const nowaData = new Date(this.nowaDataDo);
     const staraData = new Date(this.selectedReservation.dataDo);
 
     if (nowaData <= staraData) {

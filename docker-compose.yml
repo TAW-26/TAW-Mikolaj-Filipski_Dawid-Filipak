@@ -2,54 +2,66 @@ version: '3.8'
 
 services:
   mongo-db:
-    image: mongo:latest
+    image: mongo:6.0
     container_name: mongodb_container
-    ports:
-      - "27017:27017"
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=prod_admin
+      - MONGO_INITDB_ROOT_PASSWORD=BardzoSilneHaslo123!
     volumes:
       - mongo-data:/data/db
 
   backend:
     build: ./backend
     container_name: backend_container
+    restart: always
     ports:
       - "3000:3000"
     environment:
-      - MONGO_URI=mongodb://mongo-db:27017/twoja_baza_danych
+      - MONGO_URI=mongodb://prod_admin:BardzoSilneHaslo123!@mongo-db:27017/twoja_baza_danych?authSource=admin
       - ADMIN_COOKIE_NAME=adminjs
       - ADMIN_COOKIE_PASSWORD=supersecretpassword1234567890123456
+      - NODE_ENV=production
     depends_on:
       - mongo-db
 
   frontend:
     build: ./frontend
     container_name: frontend_container
+    restart: always
     ports:
-      - "4200:4200"
+      - "80:80"
     depends_on:
       - backend
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     container_name: prometheus_container
+    restart: always
     ports:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     depends_on:
       - backend
 
   grafana:
     image: grafana/grafana:latest
+    container_name: grafana_container
+    restart: always
     ports:
       - "3001:3000"
     volumes:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/dashboards_json:/var/lib/grafana/dashboards
+      - grafana-storage:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
 
 volumes:
   mongo-data:
+  prometheus-data:
   grafana-storage:

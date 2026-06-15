@@ -40,7 +40,6 @@ export class ParkingListComponent {
     });
   }
 
-  // 🔎 FETCH z paginacją + search
   pobierzParkingi() {
     const url = `http://localhost:3000/api/parkingi?page=${this.page}&limit=${this.limit}&search=${encodeURIComponent(this.search)}`;
 
@@ -62,13 +61,11 @@ export class ParkingListComponent {
       .catch(err => console.error('Błąd pobierania:', err));
   }
 
-  // 🔍 SEARCH
   onSearch() {
     this.page = 1;
     this.pobierzParkingi();
   }
 
-  // 📄 PAGINACJA
   nextPage() {
     if (this.page < this.totalPages) {
       this.page++;
@@ -83,7 +80,6 @@ export class ParkingListComponent {
     }
   }
 
-  // 🗺 MAPA
   przelaczWidokMapy() {
     this.widokMapy = !this.widokMapy;
     this.cdr.detectChanges();
@@ -126,7 +122,6 @@ export class ParkingListComponent {
     this.layerGroup = L.layerGroup().addTo(this.mapa);
   }
 
-  // 📍 MARKERY (POPRAWIONE - czyści stare)
   rysujZnaczniki() {
     if (!this.mapa) return;
 
@@ -157,7 +152,7 @@ export class ParkingListComponent {
     });
   }
 
-  // 🔐 LOGOWANIE
+
   sprawdzLogowanieIPrzejdz(parkingId: string) {
     const token = localStorage.getItem('token');
 

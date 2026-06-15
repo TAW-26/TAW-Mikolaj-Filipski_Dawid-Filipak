@@ -136,10 +136,10 @@ router.patch('/:id/przedluz', auth, async (req, res) => {
         const kolizjaNowegoCzasuPojazdu = await Rezerwacja.findOne({
             pojazdId: rezerwacja.pojazdId,
             parkingId: rezerwacja.parkingId, 
-            _id: { $ne: rezerwacja._id },    // Ignorujemy samych siebie
+            _id: { $ne: rezerwacja._id }, 
             status: { $ne: 'anulowana' },
             dataOd: { $lt: nowaDataKoniec },
-            dataDo: { $gt: rezerwacja.dataDo } // Szukamy konfliktów od obecnego końca do nowego końca
+            dataDo: { $gt: rezerwacja.dataDo }
         });
 
         if (kolizjaNowegoCzasuPojazdu) {

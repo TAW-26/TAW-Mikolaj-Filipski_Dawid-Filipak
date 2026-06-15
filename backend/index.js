@@ -20,7 +20,7 @@ const metricsMiddleware = require('./metrics/metricsMiddleware');
 app.use(express.json());
 app.use(metricsMiddleware);
 
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:4200';
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost';
 app.use(cors({
   origin: allowedOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -101,7 +101,6 @@ export class ParkingDetailsComponent implements OnInit {
     const start = new Date(this.formData.dataOd);
     const koniec = new Date(this.formData.dataDo);
 
-    // Jeśli ktoś wpisał bzdurne daty (koniec przed startem), ignorujemy
     if (start >= koniec) {
       this.wolneMiejscaWybranyTermin = null;
       return;
@@ -110,7 +109,6 @@ export class ParkingDetailsComponent implements OnInit {
     this.sprawdzamDostepnosc = true;
     this.cdr.detectChanges();
 
-    // Wysyłamy ciche zapytanie z parametrami URL
     fetch(`http://localhost:3000/api/parkingi/${this.id}/dostepnosc?start=${this.formData.dataOd}&end=${this.formData.dataDo}`)
       .then(res => res.json())
       .then(data => {
